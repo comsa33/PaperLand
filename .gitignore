@@ -1,0 +1,81 @@
+# ===== Node / Frontend =====
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+.vercel/
+
+# ===== Python / Pipeline =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# uv
+uv.lock
+
+# ===== Data =====
+# 원본/중간 산출물은 커밋 금지 — 용량 큼 + 재생성 가능
+data/raw/
+data/processed/
+data/serving/
+data/cache/
+*.parquet
+*.npy
+*.npz
+*.bin
+*.faiss
+
+# 샘플/픽스처는 예외 — 명시적 화이트리스트
+!data/fixtures/
+!data/fixtures/**
+
+# ===== Models =====
+models/
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+
+# ===== Secrets / Local config =====
+.env
+.env.*
+!.env.example
+*.secret
+*.key
+*.pem
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== Logs =====
+*.log
+logs/
+
+# ===== OMC / Claude Code =====
+.omc/
+**/.omc/
+.claude/
+
+# ===== Notebook outputs =====
+notebooks/**/.ipynb_checkpoints/
