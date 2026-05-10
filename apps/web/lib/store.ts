@@ -54,13 +54,8 @@ export const useUIStore = create<UIState>((set) => ({
     if (typeof window !== "undefined") {
       window.localStorage.setItem(CATEGORY_KEY, c);
     }
-    set({
-      category: c,
-      // 카테고리 바뀌면 선택 상태 초기화
-      selectedCandidate: null,
-      selectedCellId: null,
-      viewMode: "list",
-    });
+    // 카테고리 바뀌면 선택은 초기화하되 viewMode는 유지 (사용자가 보고 있던 탭 유지).
+    set({ category: c, selectedCandidate: null, selectedCellId: null });
   },
 }));
 

@@ -183,6 +183,22 @@ const STRINGS = {
   backToList: { ko: "후보 목록으로", en: "Back to list" },
   detailMapTab: { ko: "지도에서 위치 보기", en: "Show on map" },
   detailFlowTab: { ko: "연도별 흐름 보기", en: "Year-by-year flow" },
+  tabCandidates: { ko: "후보", en: "Candidates" },
+  tabMap: { ko: "지도", en: "Map" },
+  tabFlow: { ko: "흐름", en: "Flow" },
+  flowNeedsCandidate: {
+    ko: "후보를 먼저 선택하면 흐름을 볼 수 있어요.",
+    en: "Pick a candidate first to view the flow.",
+  },
+  noCandidatesEmpty: {
+    ko: "신뢰 기준을 통과한 공백 후보가 없습니다. 지도에서 직접 영역을 둘러보세요.",
+    en: "No whitespace candidates passed the reliability filter. Explore the map directly instead.",
+  },
+  exploreMap: { ko: "지도 보기", en: "Open the map" },
+  yearRange: {
+    ko: (a: number, b: number) => `데이터: ${a}–${b}`,
+    en: (a: number, b: number) => `Data: ${a}–${b}`,
+  },
   detailSidebarHint: {
     ko: "오른쪽 패널에 인접 논문 5편과 Scholar 검색 쿼리가 있습니다.",
     en: "Right panel shows 5 nearest papers and Scholar verification queries.",

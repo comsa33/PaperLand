@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowLeft, GitBranch, Languages, Map as MapIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Compass, GitBranch, Languages, Map as MapIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { CandidateGrid } from "@/components/CandidateGrid";
 import { LineageView } from "@/components/LineageView";
 import { Map } from "@/components/Map";
@@ -24,9 +24,26 @@ export default function HomePage() {
   const setLocale = useUIStore((s) => s.setLocale);
   const viewMode = useUIStore((s) => s.viewMode);
   const setViewMode = useUIStore((s) => s.setViewMode);
-  const selectCandidate = useUIStore((s) => s.selectCandidate);
   const category = useUIStore((s) => s.category);
   const setCategory = useUIStore((s) => s.setCategory);
+  const selectedCandidate = useUIStore((s) => s.selectedCandidate);
+
+  const hasCandidates = (data?.whitespace.length ?? 0) > 0;
+
+  // 후보가 0개이고 사용자가 list 모드이면 자동으로 지도로 — 진입 끊김 방지.
+  useEffect(() => {
+    if (!hasCandidates && viewMode === "list") setViewMode("map");
+  }, [hasCandidates, viewMode, setViewMode]);
+
+  // 데이터의 연도 범위 (papers_index 기준)
+  const yearRange = useMemo(() => {
+    if (!data) return null;
+    const ys = data.papers
+      .map((p) => p.year)
+      .filter((y): y is number => typeof y === "number");
+    if (ys.length === 0) return null;
+    return [Math.min(...ys), Math.max(...ys)] as const;
+  }, [data]);
 
   useEffect(() => {
     hydrateLocale();
@@ -98,13 +115,6 @@ make web`}
   }
 
   const isFixture = data.manifest.embedding_model.startsWith("synthetic-fixture");
-  const isList = viewMode === "list";
-  const inDetail = !isList;
-
-  const backToList = () => {
-    selectCandidate(null);
-    setViewMode("list");
-  };
 
   return (
     <main className="h-screen flex flex-col">
@@ -116,51 +126,30 @@ make web`}
           </p>
         </div>
 
-        {inDetail ? (
-          <nav className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={backToList}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-semibold border border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))] transition whitespace-nowrap"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              {ui.backToList[locale]}
-            </button>
-            <div className="ml-2 flex items-center gap-1 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-0.5">
-              <button
-                type="button"
-                onClick={() => setViewMode("map")}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-semibold transition ${
-                  viewMode === "map"
-                    ? "bg-[hsl(var(--background))] shadow-sm"
-                    : "text-[hsl(var(--foreground))]/65 hover:text-[hsl(var(--foreground))]/95"
-                }`}
-                aria-pressed={viewMode === "map"}
-              >
-                <MapIcon className="w-4 h-4" />
-                {ui.detailMapTab[locale]}
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("lineage")}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-semibold transition ${
-                  viewMode === "lineage"
-                    ? "bg-[hsl(var(--background))] shadow-sm"
-                    : "text-[hsl(var(--foreground))]/65 hover:text-[hsl(var(--foreground))]/95"
-                }`}
-                aria-pressed={viewMode === "lineage"}
-              >
-                <GitBranch className="w-4 h-4" />
-                {ui.detailFlowTab[locale]}
-              </button>
-            </div>
-          </nav>
-        ) : (
-          <span className="text-xs text-[hsl(var(--foreground))]/55 font-mono whitespace-nowrap hidden md:block">
-            {data.whitespace.length} candidates · {data.manifest.paper_count}{" "}
-            papers
-          </span>
-        )}
+        <nav className="flex items-center gap-1 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-0.5">
+          <TabButton
+            active={viewMode === "list"}
+            onClick={() => setViewMode("list")}
+            disabled={!hasCandidates}
+            disabledHint={ui.noCandidatesEmpty[locale]}
+            icon={<Compass className="w-4 h-4" />}
+            label={`${ui.tabCandidates[locale]}${hasCandidates ? ` (${data.whitespace.length})` : ""}`}
+          />
+          <TabButton
+            active={viewMode === "map"}
+            onClick={() => setViewMode("map")}
+            icon={<MapIcon className="w-4 h-4" />}
+            label={ui.tabMap[locale]}
+          />
+          <TabButton
+            active={viewMode === "lineage"}
+            onClick={() => setViewMode("lineage")}
+            disabled={!selectedCandidate}
+            disabledHint={ui.flowNeedsCandidate[locale]}
+            icon={<GitBranch className="w-4 h-4" />}
+            label={ui.tabFlow[locale]}
+          />
+        </nav>
 
         {isFixture && (
           <div className="px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 whitespace-nowrap">
@@ -173,6 +162,8 @@ make web`}
             <span className="font-mono text-[hsl(var(--foreground))]/55">
               epoch {data.manifest.map_epoch} · {data.manifest.paper_count}{" "}
               {locale === "ko" ? "편" : "papers"}
+              {yearRange &&
+                ` · ${(ui.yearRange[locale] as (a: number, b: number) => string)(yearRange[0], yearRange[1])}`}
             </span>
             {catalog && catalog.datasets.length > 0 && (
               <label
@@ -211,8 +202,15 @@ make web`}
       </header>
 
       <div className="flex-1 flex overflow-hidden relative">
-        {isList ? (
-          <CandidateGrid candidates={data.whitespace} papers={data.papers} />
+        {viewMode === "list" ? (
+          hasCandidates ? (
+            <CandidateGrid candidates={data.whitespace} papers={data.papers} />
+          ) : (
+            <CandidateEmpty
+              locale={locale}
+              onOpenMap={() => setViewMode("map")}
+            />
+          )
         ) : viewMode === "map" ? (
           <>
             <div className="flex-1 relative bg-[hsl(var(--background))]">
@@ -241,4 +239,67 @@ make web`}
 
 function findEntry(catalog: Catalog, primary: string): CatalogEntry | undefined {
   return catalog.datasets.find((d) => d.primary === primary);
+}
+
+function TabButton({
+  active,
+  onClick,
+  disabled,
+  disabledHint,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+  disabledHint?: string;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      title={disabled ? disabledHint : undefined}
+      aria-pressed={active}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-semibold transition whitespace-nowrap ${
+        active
+          ? "bg-[hsl(var(--background))] shadow-sm"
+          : disabled
+            ? "text-[hsl(var(--foreground))]/30 cursor-not-allowed"
+            : "text-[hsl(var(--foreground))]/65 hover:text-[hsl(var(--foreground))]/95"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function CandidateEmpty({
+  locale,
+  onOpenMap,
+}: {
+  locale: Locale;
+  onOpenMap: () => void;
+}) {
+  return (
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="max-w-md text-center space-y-4">
+        <Compass className="w-10 h-10 text-orange-500/70 mx-auto" />
+        <p className="text-base text-[hsl(var(--foreground))]/75 leading-relaxed">
+          {ui.noCandidatesEmpty[locale]}
+        </p>
+        <button
+          type="button"
+          onClick={onOpenMap}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-orange-500 text-white font-semibold hover:bg-orange-600 transition"
+        >
+          <MapIcon className="w-4 h-4" />
+          {ui.exploreMap[locale]}
+        </button>
+      </div>
+    </div>
+  );
 }
