@@ -12,7 +12,7 @@ help:
 
 install:
 	cd packages/pipeline && uv venv && uv pip install -e ".[dev]"
-	cd apps/web && npm install
+	npm install
 
 fixtures:
 	cd packages/pipeline && uv run paperland fixtures --out ../../apps/web/public/data

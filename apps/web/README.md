@@ -5,15 +5,14 @@ PaperLand의 정적 웹 프론트엔드 (Next.js 15 + deck.gl).
 ## 시작
 
 ```bash
-# 1) 픽스처 데이터 생성 (한 번만)
-cd ../../packages/pipeline
-uv pip install -e .
-paperland fixtures --out ../../apps/web/public/data
+# 루트에서 한 번에 (npm workspaces)
+cd <repo-root>
+make install     # uv + npm install (workspace 인식)
+make dev         # 픽스처 생성 + 프론트 dev 서버
 
-# 2) 프론트 실행
-cd ../../apps/web
-npm install
-npm run dev
+# 또는 직접
+npm install                                  # 루트에서 — workspaces 자동 처리
+npm run dev                                  # paperland-web 워크스페이스 dev
 ```
 
 → `http://localhost:3000`

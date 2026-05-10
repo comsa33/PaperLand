@@ -1,0 +1,18 @@
+{
+  "name": "paperland",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PaperLand — 연구 지형도 + 공백 후보 탐지기 (모노레포 루트)",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=paperland-web",
+    "build": "npm run build --workspace=paperland-web",
+    "lint": "npm run lint --workspace=paperland-web",
+    "typecheck": "npm run typecheck --workspace=paperland-web"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
