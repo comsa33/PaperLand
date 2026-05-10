@@ -260,6 +260,137 @@ def keywords_per_paper(
     return out
 
 
+def extract_cell_keywords(
+    papers_df: pl.DataFrame,
+    coords_with_cells: pl.DataFrame,
+    top_n: int = 5,
+    min_papers_per_cell: int = 1,
+) -> dict[str, list[str]]:
+    """h3 셀 단위 c-TF-IDF — 각 셀을 '문서'로 보고 abstract만으로 로컬 키워드 산출.
+
+    cluster 키워드를 셀에 그대로 상속하던 구조는 "지도 라벨이 다른 위치에 있는데
+    셀 패널에 클러스터 라벨이 뜨는" 의미 단위 혼선의 원인이었다. 셀 키워드는 항상
+    그 셀의 논문 abstract에서 직접 계산해야 사용자가 본 위치의 의미와 일치한다.
+
+    Args:
+        papers_df: [arxiv_id, abstract]
+        coords_with_cells: [arxiv_id, cell_id]
+        top_n: 셀당 최대 키워드 수
+        min_papers_per_cell: 키워드를 계산할 최소 논문 수 (그 미만은 [])
+    """
+    if papers_df.is_empty() or coords_with_cells.is_empty():
+        return {}
+
+    # cell → abstract 묶기
+    abstract_by_id = dict(
+        zip(papers_df["arxiv_id"].to_list(), papers_df["abstract"].to_list())
+    )
+    cell_docs: dict[str, list[str]] = defaultdict(list)
+    for row in coords_with_cells.to_dicts():
+        cell_id = row.get("cell_id")
+        arxiv_id = row.get("arxiv_id")
+        if not cell_id or not arxiv_id:
+            continue
+        text = abstract_by_id.get(arxiv_id)
+        if text:
+            cell_docs[cell_id].append(_clean_text(text))
+
+    # 키워드를 계산할 셀만 필터
+    eligible = {
+        cell: docs
+        for cell, docs in cell_docs.items()
+        if len(docs) >= min_papers_per_cell
+    }
+    if not eligible:
+        return {}
+
+    cell_ids = sorted(eligible.keys())
+    joined = [" ".join(eligible[cid]) for cid in cell_ids]
+
+    sklearn_stop = _english_stopwords()
+
+    def phrase_aware_analyzer(text: str) -> list[str]:
+        ngrams: list[str] = []
+        for phrase in re.split(r"[.\n]+", text):
+            normed = _preprocess_phrase(phrase.lower())
+            tokens = [
+                t for t in re.findall(r"\b\w\w+\b", normed)
+                if t not in sklearn_stop
+            ]
+            ngrams.extend(tokens)
+            for i in range(len(tokens) - 1):
+                ngrams.append(f"{tokens[i]} {tokens[i + 1]}")
+        return ngrams
+
+    # 셀은 클러스터보다 훨씬 작아 min_df=1로 두지 않으면 키워드가 거의 안 잡힌다.
+    vectorizer = CountVectorizer(
+        analyzer=phrase_aware_analyzer,
+        min_df=1,
+        max_features=50000,
+    )
+    counts = vectorizer.fit_transform(joined)
+    tfidf = TfidfTransformer().fit_transform(counts)
+    feature_names = vectorizer.get_feature_names_out()
+    is_multiword = np.array([" " in name for name in feature_names])
+
+    # 셀 단위에서도 너무 흔한 phrase는 변별력 약화 → 페널티.
+    n_total = tfidf.shape[0]
+    appears = np.array([
+        int((tfidf[:, j].toarray().flatten() > 0).sum())
+        for j in range(tfidf.shape[1])
+    ])
+    is_global = appears >= max(2, int(0.4 * n_total))
+
+    weak_bigrams = {
+        "large language",
+        "language llms",
+        "language language",
+        "sequence sequence",
+        "model model",
+        "data data",
+        "task task",
+    } | set(_NOISY_PHRASES)
+    is_weak = np.array([name in weak_bigrams for name in feature_names])
+
+    result: dict[str, list[str]] = {}
+    for idx, cid in enumerate(cell_ids):
+        row = tfidf[idx].toarray().flatten()
+        adjusted = row * np.where(is_global, 0.4, 1.0)
+        adjusted = adjusted * np.where(is_weak, 0.0, 1.0)
+        order = adjusted.argsort()[::-1]
+
+        multiword_picks: list[str] = []
+        seen_sigs: set[str] = set()
+        unigram_backup: list[str] = []
+        for i in order:
+            if row[i] <= 0:
+                break
+            name = feature_names[i]
+            if is_multiword[i]:
+                sig = _phrase_signature(name)
+                if sig in seen_sigs:
+                    continue
+                if len(multiword_picks) < top_n:
+                    multiword_picks.append(name)
+                    seen_sigs.add(sig)
+            else:
+                if any(name in m.split() for m in multiword_picks):
+                    continue
+                unigram_backup.append(name)
+            if len(multiword_picks) >= top_n:
+                break
+
+        kws = multiword_picks[:]
+        if len(kws) < top_n:
+            for kw in unigram_backup:
+                if kw not in kws:
+                    kws.append(kw)
+                if len(kws) >= top_n:
+                    break
+        result[cid] = [_canonicalize_surface(k) for k in kws]
+    return result
+
+
 def _clean_text(text: str) -> str:
     text = re.sub(r"\s+", " ", text or "").strip()
     return text.lower()

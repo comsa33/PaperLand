@@ -45,6 +45,7 @@ def aggregate_cells(
     papers_df: pl.DataFrame,
     coords_df: pl.DataFrame,
     keywords_per_paper: dict[str, list[str]] | None = None,
+    cell_keywords: dict[str, list[str]] | None = None,
     recent_year_threshold: int | None = None,
 ) -> pl.DataFrame:
     """셀 단위 집계.
@@ -52,7 +53,9 @@ def aggregate_cells(
     Args:
         papers_df: [arxiv_id, primary_category, submitted_date]
         coords_df: [arxiv_id, x, y, cell_id]
-        keywords_per_paper: arxiv_id → 키워드 리스트 (선택)
+        keywords_per_paper: arxiv_id → 키워드 리스트 (선택, legacy: cluster keyword 상속).
+        cell_keywords: cell_id → 키워드 리스트 (선택). 제공되면 이 셀의 로컬 키워드를
+            top_keywords로 우선 사용. 셀과 클러스터의 의미 단위가 섞이는 회귀를 차단.
         recent_year_threshold: 이 연도 이후를 'recent'로 집계
 
     Returns:
@@ -80,10 +83,14 @@ def aggregate_cells(
     else:
         agg = agg.with_columns(pl.col("paper_count").alias("recent_count"))
 
-    # top_keywords 계산
+    # top_keywords 계산 — cell_keywords(로컬 c-TF-IDF) 우선, 없으면 paper별 키워드
+    # 카운터, 그것도 없으면 빈 리스트.
     top_keywords_col: list[list[str]] = []
-    for paper_ids in agg["paper_ids"].to_list():
-        if keywords_per_paper:
+    cell_id_col = agg["cell_id"].to_list()
+    for cell_id, paper_ids in zip(cell_id_col, agg["paper_ids"].to_list()):
+        if cell_keywords and cell_id in cell_keywords:
+            top_keywords_col.append(cell_keywords[cell_id][:5])
+        elif keywords_per_paper:
             kw_counter: Counter[str] = Counter()
             for pid in paper_ids:
                 for kw in keywords_per_paper.get(pid, []):

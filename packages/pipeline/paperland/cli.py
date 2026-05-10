@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from collections import Counter, defaultdict
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -115,6 +116,7 @@ def build(
     from .projection import fit_umap, project_to_2d, coords_to_dataframe
     from .clustering import (
         cluster_kmeans,
+        extract_cell_keywords,
         extract_cluster_keywords,
         keywords_per_paper,
     )
@@ -152,10 +154,19 @@ def build(
 
     rprint(f"[cyan]h3 격자화[/] resolution={h3_resolution}")
     coords_df = assign_cells(coords_df, resolution=h3_resolution)
+
+    # 셀 단위 로컬 키워드 — 클러스터 키워드 상속을 차단하고 그 셀의 abstract만으로
+    # 계산. 지도 라벨(클러스터)와 셀 패널(로컬)을 의미 단위로 분리한다.
+    cell_keywords = extract_cell_keywords(
+        papers_df=papers_df.select(["arxiv_id", "abstract"]),
+        coords_with_cells=coords_df.select(["arxiv_id", "cell_id"]),
+    )
+
     cells_df = aggregate_cells(
         papers_df=papers_df.select(["arxiv_id", "primary_category", "submitted_date"]),
         coords_df=coords_df,
         keywords_per_paper=paper_keywords,
+        cell_keywords=cell_keywords,
         recent_year_threshold=date.today().year - 2,
     )
 
@@ -170,22 +181,45 @@ def build(
     )
 
     rprint("[cyan]artifact 빌드[/]")
-    # 클러스터 centroid — 지도 영역 라벨용
+    # 클러스터 centroid — 지도 영역 라벨용. 단순 평균은 KMeans가 2D에서 분리된
+    # 섬을 하나로 묶을 때 라벨이 비어 있는 사이공간에 떨어지는 회귀가 있어,
+    # 클러스터에 속한 h3 셀 중 paper_count가 가장 많은 셀의 centroid를 앵커로 사용.
     arxiv_to_label = dict(zip(papers_df["arxiv_id"].to_list(), cluster_labels_arr))
-    grouped: dict[int, list[tuple[float, float]]] = {}
+
+    # cell_id → cluster label 빈도 → 셀의 dominant cluster 결정
+    cell_cluster_counts: dict[str, Counter[int]] = defaultdict(Counter)
     for row in coords_df.to_dicts():
         label = int(arxiv_to_label.get(row["arxiv_id"], -1))
-        if label == -1:
+        if label == -1 or not row.get("cell_id"):
             continue
-        grouped.setdefault(label, []).append((row["x"], row["y"]))
+        cell_cluster_counts[row["cell_id"]][label] += 1
+
+    cells_lookup_by_id = {row["cell_id"]: row for row in cells_df.to_dicts()}
+
+    # cluster → [(cell_id, paper_count_in_cluster, cell_centroid_x, cell_centroid_y, total_paper_count)]
+    cluster_to_cells: dict[int, list[tuple[str, int, float, float, int]]] = (
+        defaultdict(list)
+    )
+    for cell_id, counts in cell_cluster_counts.items():
+        cell_row = cells_lookup_by_id.get(cell_id)
+        if cell_row is None:
+            continue
+        cx = float(cell_row["centroid_x"])
+        cy = float(cell_row["centroid_y"])
+        total = int(cell_row.get("paper_count") or 0)
+        for cluster_id, n in counts.items():
+            cluster_to_cells[cluster_id].append((cell_id, n, cx, cy, total))
+
     cluster_centroids: dict[int, dict[str, float]] = {}
-    for cid, points in grouped.items():
-        xs = [p[0] for p in points]
-        ys = [p[1] for p in points]
+    for cid, entries in cluster_to_cells.items():
+        # density peak: 그 cluster 소속 papers가 가장 많은 셀을 anchor로
+        entries.sort(key=lambda e: (-e[1], -e[4]))
+        anchor = entries[0]
+        total_count = sum(e[1] for e in entries)
         cluster_centroids[cid] = {
-            "x": float(sum(xs) / len(xs)),
-            "y": float(sum(ys) / len(ys)),
-            "count": len(points),
+            "x": anchor[2],
+            "y": anchor[3],
+            "count": total_count,
         }
 
     manifest = build_artifacts(

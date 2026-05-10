@@ -327,8 +327,8 @@ const STRINGS = {
     en: "Papers in this cell",
   },
   representativeKw: {
-    ko: "대표 키워드",
-    en: "Representative keywords",
+    ko: "이 셀의 로컬 주제 (셀 내부 abstract 기반)",
+    en: "Local topic of this cell (from in-cell abstracts)",
   },
   neighborKw: {
     ko: "주변 키워드 (영문 / 한글 병기)",
