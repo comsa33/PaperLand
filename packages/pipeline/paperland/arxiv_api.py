@@ -21,15 +21,41 @@ import httpx
 
 from .schemas import Paper
 
-ARXIV_API_BASE = "http://export.arxiv.org/api/query"
+ARXIV_API_BASE = "https://export.arxiv.org/api/query"
 NS = {
     "atom": "http://www.w3.org/2005/Atom",
     "arxiv": "http://arxiv.org/schemas/atom",
 }
 DEFAULT_DELAY_SECONDS = 3.0  # arXiv 정중한 rate limit
 PAGE_SIZE = 100  # arXiv 권장 max
+USER_AGENT = "PaperLand/0.1 (+https://github.com/comsa333/PaperLand; mailto:comsa333@gmail.com)"
+MAX_429_RETRIES = 5
 
 log = logging.getLogger(__name__)
+
+
+def _request_with_retry(
+    client: httpx.Client,
+    params: dict,
+    base_delay: float,
+) -> httpx.Response:
+    """429 발생 시 지수 백오프로 재시도."""
+    backoff = max(10.0, base_delay * 4)
+    for attempt in range(MAX_429_RETRIES):
+        res = client.get(ARXIV_API_BASE, params=params)
+        if res.status_code != 429:
+            res.raise_for_status()
+            return res
+        wait = backoff * (2**attempt)
+        log.warning(
+            "arXiv 429 rate limited (attempt %d/%d) — %.0fs 대기",
+            attempt + 1,
+            MAX_429_RETRIES,
+            wait,
+        )
+        time.sleep(wait)
+    res.raise_for_status()
+    return res
 
 
 def fetch_papers(
@@ -50,7 +76,10 @@ def fetch_papers(
     """
     fetched = 0
     start = 0
-    with httpx.Client(timeout=60.0) as client:
+    headers = {"User-Agent": USER_AGENT}
+    with httpx.Client(
+        timeout=60.0, follow_redirects=True, headers=headers
+    ) as client:
         while fetched < max_results:
             wanted = min(page_size, max_results - fetched)
             params = {
@@ -61,8 +90,7 @@ def fetch_papers(
                 "sortOrder": "descending",
             }
             log.info("arXiv fetch start=%d size=%d", start, wanted)
-            res = client.get(ARXIV_API_BASE, params=params)
-            res.raise_for_status()
+            res = _request_with_retry(client, params, base_delay=delay)
             entries = list(_parse_feed(res.text))
             if not entries:
                 break
