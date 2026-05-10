@@ -373,8 +373,13 @@ class AdjacentGapDetector:
 
             score = neighbor_density * (1.0 - own_count / max_density)
 
-            # 본질 공백 필터
-            if paper_coords is not None and not self._is_reachable(cell_id, paper_coords):
+            # 본질 공백 필터 — own_count > 0이면 이미 도달된 영역이므로 통과.
+            # (논문이 있는데 reachability에서 떨어지는 건 논리적 모순이라 사용자 신뢰가 깎임.)
+            if (
+                own_count == 0
+                and paper_coords is not None
+                and not self._is_reachable(cell_id, paper_coords)
+            ):
                 continue
 
             scored.append({

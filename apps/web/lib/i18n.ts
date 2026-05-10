@@ -199,6 +199,33 @@ const STRINGS = {
     ko: (a: number, b: number) => `데이터: ${a}–${b}`,
     en: (a: number, b: number) => `Data: ${a}–${b}`,
   },
+  sparsenessTitle: {
+    ko: "이 셀의 밀도",
+    en: "This cell's density",
+  },
+  sparsenessOwn: { ko: "자기 셀", en: "Self" },
+  sparsenessNeighbor: { ko: "이웃 평균", en: "Neighbor avg" },
+  sparsenessRatio: { ko: "비율", en: "Ratio" },
+  isCandidate: {
+    ko: "✓ 공백 후보로 채택됨",
+    en: "✓ Selected as whitespace candidate",
+  },
+  notCandidateLowRatio: {
+    ko: (r: number) =>
+      `이웃 대비 비율이 ${r.toFixed(2)}로 임계 0.5보다 낮지만, 본질 공백/응집성/Top-K 컷 등 추가 필터에서 탈락했을 수 있습니다.`,
+    en: (r: number) =>
+      `Self/neighbor ratio ${r.toFixed(2)} is under the 0.5 threshold, but the cell may have been dropped by reachability/coherence/top-K filters.`,
+  },
+  notCandidateHighRatio: {
+    ko: (r: number) =>
+      `이웃 대비 비율이 ${r.toFixed(2)}로 임계 0.5 이상 — 자기 셀이 충분히 차 있어 공백 후보가 아닙니다.`,
+    en: (r: number) =>
+      `Self/neighbor ratio ${r.toFixed(2)} is above the 0.5 threshold — this cell is dense enough not to qualify.`,
+  },
+  notCandidateNoNeighbors: {
+    ko: "주변에 인접한 셀의 논문이 부족해 비교 기준이 없습니다.",
+    en: "Not enough adjacent cells to compute a comparison.",
+  },
   detailSidebarHint: {
     ko: "오른쪽 패널에 인접 논문 5편과 Scholar 검색 쿼리가 있습니다.",
     en: "Right panel shows 5 nearest papers and Scholar verification queries.",

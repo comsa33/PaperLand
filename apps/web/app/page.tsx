@@ -130,10 +130,8 @@ make web`}
           <TabButton
             active={viewMode === "list"}
             onClick={() => setViewMode("list")}
-            disabled={!hasCandidates}
-            disabledHint={ui.noCandidatesEmpty[locale]}
             icon={<Compass className="w-4 h-4" />}
-            label={`${ui.tabCandidates[locale]}${hasCandidates ? ` (${data.whitespace.length})` : ""}`}
+            label={`${ui.tabCandidates[locale]} (${data.whitespace.length})`}
           />
           <TabButton
             active={viewMode === "map"}
@@ -144,7 +142,7 @@ make web`}
           <TabButton
             active={viewMode === "lineage"}
             onClick={() => setViewMode("lineage")}
-            disabled={!selectedCandidate}
+            disabled={!hasCandidates}
             disabledHint={ui.flowNeedsCandidate[locale]}
             icon={<GitBranch className="w-4 h-4" />}
             label={ui.tabFlow[locale]}

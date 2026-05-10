@@ -108,20 +108,25 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
       lineWidthMinPixels: 1,
       getFillColor: (d) => {
         const isWS = whitespaceCellIds.has(d.cell_id);
-        const isSelected = selectedCellId === d.cell_id;
         if (isWS) {
-          return isSelected ? [255, 180, 50, 240] : [255, 140, 0, 210];
+          return [255, 140, 0, 210]; // 주황 = 공백 후보 (selected 여부와 무관)
         }
+        // 일반 셀은 항상 밀도 색상 유지. selected는 outline으로만 표시.
         const intensity = Math.min(1, d.paper_count / maxCount);
         const r = Math.floor(40 + (1 - intensity) * 80);
         const g = Math.floor(80 + (1 - intensity) * 60);
         const b = Math.floor(255 - intensity * 30);
-        return isSelected ? [255, 220, 100, 230] : [r, g, b, 180];
+        return [r, g, b, 180];
       },
-      getLineColor: (d) =>
-        whitespaceCellIds.has(d.cell_id)
-          ? [255, 180, 50, 230]
-          : [180, 200, 230, 70],
+      getLineColor: (d) => {
+        const isSelected = selectedCellId === d.cell_id;
+        const isWS = whitespaceCellIds.has(d.cell_id);
+        if (isSelected) return [255, 255, 255, 255]; // 선택 = 흰색 outline (다른 시그널과 분리)
+        if (isWS) return [255, 180, 50, 230];
+        return [180, 200, 230, 70];
+      },
+      getLineWidth: (d) => (selectedCellId === d.cell_id ? 3 : 1),
+      lineWidthUnits: "pixels",
       onClick: (info) => {
         const cell = info.object as Cell | undefined;
         selectCell(cell?.cell_id ?? null);

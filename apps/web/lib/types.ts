@@ -16,6 +16,8 @@ export interface Cell {
   centroid_y: number;
   top_keywords: string[];
   dominant_category: string | null;
+  neighbor_density?: number;
+  self_neighbor_ratio?: number | null;
 }
 
 export interface PaperPoint {

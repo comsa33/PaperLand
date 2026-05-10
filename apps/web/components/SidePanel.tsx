@@ -72,6 +72,8 @@ export function SidePanel({ cells, papers, whitespace }: Props) {
             )}
           </header>
 
+          {cell && <SparsenessBlock cell={cell} isCandidate={!!candidate} locale={locale} />}
+
           {candidate && <CandidateBlock candidate={candidate} locale={locale} />}
 
           {cell && cell.top_keywords.length > 0 && !candidate && (
@@ -190,6 +192,87 @@ function EmptyState({ locale }: { locale: "ko" | "en" }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function SparsenessBlock({
+  cell,
+  isCandidate,
+  locale,
+}: {
+  cell: Cell;
+  isCandidate: boolean;
+  locale: "ko" | "en";
+}) {
+  const own = cell.paper_count;
+  const nbr = cell.neighbor_density ?? null;
+  const ratio = cell.self_neighbor_ratio ?? null;
+  let verdict: string;
+  if (isCandidate) {
+    verdict = ui.isCandidate[locale];
+  } else if (nbr === null || nbr <= 0) {
+    verdict = ui.notCandidateNoNeighbors[locale];
+  } else if (ratio !== null && ratio < 0.5) {
+    verdict = (ui.notCandidateLowRatio[locale] as (r: number) => string)(ratio);
+  } else if (ratio !== null) {
+    verdict = (ui.notCandidateHighRatio[locale] as (r: number) => string)(ratio);
+  } else {
+    verdict = ui.notCandidateNoNeighbors[locale];
+  }
+  return (
+    <section className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-3 space-y-2">
+      <p className="text-xs font-bold tracking-wide uppercase text-[hsl(var(--foreground))]/65">
+        {ui.sparsenessTitle[locale]}
+      </p>
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <Metric label={ui.sparsenessOwn[locale]} value={`${own}`} />
+        <Metric
+          label={ui.sparsenessNeighbor[locale]}
+          value={nbr !== null ? nbr.toFixed(1) : "—"}
+        />
+        <Metric
+          label={ui.sparsenessRatio[locale]}
+          value={ratio !== null ? ratio.toFixed(2) : "—"}
+          accent={ratio !== null && ratio < 0.5}
+        />
+      </div>
+      <p
+        className={`text-xs leading-relaxed ${
+          isCandidate
+            ? "text-orange-600 dark:text-orange-300 font-semibold"
+            : "text-[hsl(var(--foreground))]/65"
+        }`}
+      >
+        {verdict}
+      </p>
+    </section>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="rounded bg-[hsl(var(--muted))] px-2 py-1.5">
+      <p className="text-[10px] uppercase tracking-wide text-[hsl(var(--foreground))]/55">
+        {label}
+      </p>
+      <p
+        className={`text-sm font-mono font-bold ${
+          accent
+            ? "text-orange-600 dark:text-orange-300"
+            : "text-[hsl(var(--foreground))]/85"
+        }`}
+      >
+        {value}
+      </p>
     </div>
   );
 }

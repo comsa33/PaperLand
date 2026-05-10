@@ -66,17 +66,33 @@ def build_artifacts(
     epoch_dir = out_dir / map_epoch
     epoch_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. cells.json
+    # 1. cells.json — 각 셀에 neighbor_density / ratio 미리 계산해 두어
+    #    UI가 "왜 공백 후보가 아닌가"를 설명할 수 있게 한다.
+    from .gridding import cell_neighbors
+
+    own_counts = {
+        row["cell_id"]: int(row["paper_count"]) for row in cells_df.to_dicts()
+    }
     cells_payload = []
     for row in cells_df.to_dicts():
+        cell_id = row["cell_id"]
+        nbr_ids = cell_neighbors(cell_id, k=1)
+        nbr_counts = [own_counts.get(n, 0) for n in nbr_ids]
+        neighbor_density = (
+            float(sum(nbr_counts) / len(nbr_counts)) if nbr_counts else 0.0
+        )
+        own = int(row["paper_count"])
+        ratio = own / neighbor_density if neighbor_density > 0 else None
         cells_payload.append({
-            "cell_id": row["cell_id"],
-            "paper_count": int(row["paper_count"]),
+            "cell_id": cell_id,
+            "paper_count": own,
             "recent_count": int(row["recent_count"]),
             "centroid_x": float(row["centroid_x"]),
             "centroid_y": float(row["centroid_y"]),
             "top_keywords": row.get("top_keywords") or [],
             "dominant_category": row.get("dominant_category"),
+            "neighbor_density": neighbor_density,
+            "self_neighbor_ratio": ratio,
         })
     cells_checksum = _write_json(epoch_dir / "cells.json", cells_payload)
 
