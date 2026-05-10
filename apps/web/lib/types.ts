@@ -30,6 +30,10 @@ export interface PaperPoint {
 
 export interface ClusterLabel {
   keywords: string[];
+  label?: string;
+  centroid_x?: number;
+  centroid_y?: number;
+  paper_count?: number;
 }
 
 export interface NearestPaper {

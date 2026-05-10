@@ -25,7 +25,7 @@ def fixtures(
         "-o",
         help="JSON artifact 출력 디렉토리",
     ),
-    n_papers: int = typer.Option(300, "--n", help="합성 논문 수"),
+    n_papers: int = typer.Option(800, "--n", help="합성 논문 수"),
     n_clusters: int = typer.Option(8, "--clusters", help="합성 클러스터 수"),
     seed: int = typer.Option(42, "--seed", help="난수 시드"),
 ) -> None:

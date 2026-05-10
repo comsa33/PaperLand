@@ -8,9 +8,9 @@ import h3
 import numpy as np
 import polars as pl
 
-# h3 셀 해상도 — V0는 cs.CL 단일 분야이므로 비교적 세밀하게.
-# UMAP 2D 좌표 범위는 보통 [-15, 15] 정도 → 위도/경도로 매핑해 사용.
-H3_RESOLUTION = 4
+# h3 셀 해상도 — V0 픽스처(좌표 범위 약 ±15)에서 클러스터당 1~3 셀로 모이도록 조정.
+# 해상도 3: 셀 edge ~60km (위경도 ≈ 0.5°). 합성 노이즈가 한 셀 내부에 잘 떨어짐.
+H3_RESOLUTION = 3
 
 
 def coords_to_h3(x: float, y: float, resolution: int = H3_RESOLUTION) -> str:

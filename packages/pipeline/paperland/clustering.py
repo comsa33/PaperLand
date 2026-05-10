@@ -63,9 +63,25 @@ def extract_cluster_keywords(
     cluster_ids = sorted(cluster_docs.keys())
     joined = [" ".join(cluster_docs[cid]) for cid in cluster_ids]
 
+    # 문장(phrase) 경계 존중하는 사용자 정의 analyzer.
+    # 이렇게 하지 않으면 ". " 로 구분된 합성 abstract에서 인접 phrase의 끝-시작 단어가
+    # 가짜 bigram을 만들어 라벨이 왜곡됨 (예: "self verification. claim verification" → 가짜 "verification claim").
+    sklearn_stop = _english_stopwords()
+
+    def phrase_aware_analyzer(text: str) -> list[str]:
+        ngrams: list[str] = []
+        for phrase in re.split(r"[.\n]+", text):
+            tokens = [
+                t for t in re.findall(r"\b\w\w+\b", phrase.lower())
+                if t not in sklearn_stop
+            ]
+            ngrams.extend(tokens)
+            for i in range(len(tokens) - 1):
+                ngrams.append(f"{tokens[i]} {tokens[i + 1]}")
+        return ngrams
+
     vectorizer = CountVectorizer(
-        ngram_range=(1, 2),
-        stop_words="english",
+        analyzer=phrase_aware_analyzer,
         min_df=min_df,
         max_features=20000,
     )
@@ -73,16 +89,39 @@ def extract_cluster_keywords(
     tfidf = TfidfTransformer().fit_transform(counts)
     feature_names = vectorizer.get_feature_names_out()
 
-    # 다어 구문 부스트: bigram 점수에 가중치를 줘서 단일 단어 키워드가 후보를 흐리는 것을 방지
+    # 다어 구문(bigram)을 1차 후보로, 단일 단어는 보충용으로만 사용 — 라벨 변별력 확보
     is_multiword = np.array([" " in name for name in feature_names])
-    multiword_boost = 1.6
 
     result: dict[int, list[str]] = {}
     for idx, cid in enumerate(cluster_ids):
         row = tfidf[idx].toarray().flatten()
-        boosted = row * np.where(is_multiword, multiword_boost, 1.0)
-        top_idx = boosted.argsort()[::-1][:top_n]
-        keywords = [feature_names[i] for i in top_idx if row[i] > 0]
+        order = row.argsort()[::-1]
+
+        # 1) bigram에서 top_n 채우기
+        multiword_picks: list[str] = []
+        unigram_backup: list[str] = []
+        for i in order:
+            if row[i] <= 0:
+                break
+            if is_multiword[i]:
+                if len(multiword_picks) < top_n:
+                    multiword_picks.append(feature_names[i])
+            else:
+                # 이미 multiword 안에 unigram이 포함된 경우는 스킵
+                token = feature_names[i]
+                if any(token in m.split() for m in multiword_picks):
+                    continue
+                unigram_backup.append(feature_names[i])
+            if len(multiword_picks) >= top_n:
+                break
+
+        keywords = multiword_picks[:]
+        if len(keywords) < top_n:
+            for kw in unigram_backup:
+                if kw not in keywords:
+                    keywords.append(kw)
+                if len(keywords) >= top_n:
+                    break
         result[cid] = keywords
     return result
 
@@ -102,3 +141,15 @@ def keywords_per_paper(
 def _clean_text(text: str) -> str:
     text = re.sub(r"\s+", " ", text or "").strip()
     return text.lower()
+
+
+def _english_stopwords() -> frozenset[str]:
+    """sklearn 내장 영어 stopwords + 일반 학술 필러."""
+    from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+
+    extras = {
+        "study", "studies", "method", "methods", "approach", "approaches",
+        "result", "results", "model", "models", "training", "experiments",
+        "performance", "evaluation", "ablation", "case", "empirical",
+    }
+    return frozenset(ENGLISH_STOP_WORDS) | extras

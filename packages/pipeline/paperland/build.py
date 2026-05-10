@@ -42,6 +42,7 @@ def build_artifacts(
     whitespace_top: pl.DataFrame,
     embedding_model: str,
     categories: list[str],
+    cluster_centroids: dict[int, dict[str, float]] | None = None,
     map_epoch: str | None = None,
 ) -> Manifest:
     """V0 artifact 5종을 out_dir에 기록하고 manifest를 반환."""
@@ -80,10 +81,22 @@ def build_artifacts(
         })
     papers_checksum = _write_json(out_dir / "papers_index.json", papers_payload)
 
-    # 3. cluster_labels.json
-    cluster_payload = {
-        str(cid): {"keywords": kws[:10]} for cid, kws in cluster_labels.items()
+    # 3. cluster_labels.json — 키워드 + centroid (지도 라벨용)
+    raw_labels: dict[int, list[str]] = {
+        cid: kws for cid, kws in cluster_labels.items() if kws
     }
+    chosen_labels = _assign_unique_labels(raw_labels)
+    cluster_payload: dict[str, dict[str, Any]] = {}
+    for cid, kws in raw_labels.items():
+        entry: dict[str, Any] = {
+            "keywords": kws[:10],
+            "label": chosen_labels.get(cid, _build_cluster_label(kws)),
+        }
+        if cluster_centroids and cid in cluster_centroids:
+            entry["centroid_x"] = cluster_centroids[cid]["x"]
+            entry["centroid_y"] = cluster_centroids[cid]["y"]
+            entry["paper_count"] = int(cluster_centroids[cid].get("count", 0))
+        cluster_payload[str(cid)] = entry
     clusters_checksum = _write_json(out_dir / "cluster_labels.json", cluster_payload)
 
     # 4. whitespace_top10.json
@@ -121,6 +134,56 @@ def build_artifacts(
     )
     _write_json(out_dir / "manifest.json", manifest.model_dump())
     return manifest
+
+
+def _build_cluster_label(keywords: list[str]) -> str:
+    """클러스터를 한눈에 식별할 짧은 영역 라벨 (지도 위 텍스트)."""
+    if not keywords:
+        return ""
+    # 다어 구문 우선 → 짧고 의미적
+    multiword = [k for k in keywords if " " in k]
+    pick = multiword[0] if multiword else keywords[0]
+    return _titlecase(pick)
+
+
+def _titlecase(s: str) -> str:
+    return " ".join(w.capitalize() for w in s.split())
+
+
+def _assign_unique_labels(cluster_keywords: dict[int, list[str]]) -> dict[int, str]:
+    """클러스터 라벨이 서로 중복되지 않게 키워드 후보를 차례로 시도.
+
+    동일한 1순위 라벨이 두 클러스터에서 나오면, 2순위·3순위 후보로 내려간다.
+    필요하면 1·2순위를 결합해 변별력을 확보 (예: "Knowledge Grounding").
+    """
+    used: set[str] = set()
+    chosen: dict[int, str] = {}
+    # 클러스터 사이즈가 큰 순으로 우선 배정 (큰 영역이 우선 라벨 선점)
+    order = sorted(
+        cluster_keywords.keys(),
+        key=lambda c: -len(cluster_keywords[c]),
+    )
+    for cid in order:
+        kws = cluster_keywords[cid]
+        candidates = [k for k in kws if " " in k] + [k for k in kws if " " not in k]
+        picked: str | None = None
+        for cand in candidates:
+            label = _titlecase(cand)
+            if label not in used:
+                picked = label
+                break
+        if picked is None:
+            # 1·2위 결합 — 마지막 fallback
+            base = _titlecase(candidates[0]) if candidates else f"Cluster {cid}"
+            second = _titlecase(candidates[1]) if len(candidates) > 1 else ""
+            picked = f"{base} · {second}".strip(" · ")
+            i = 2
+            while picked in used and i < len(candidates):
+                picked = f"{base} · {_titlecase(candidates[i])}"
+                i += 1
+        used.add(picked)
+        chosen[cid] = picked
+    return chosen
 
 
 def _build_suggested_queries(keywords: list[str]) -> list[str]:

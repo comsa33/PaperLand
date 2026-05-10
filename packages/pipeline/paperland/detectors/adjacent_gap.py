@@ -98,9 +98,25 @@ class AdjacentGapDetector:
         if not scored:
             return self._empty_result()
 
-        # 4. Top-K
+        # 4. Top-K with dedup by neighbor signature
         scored.sort(key=lambda r: r["score"], reverse=True)
-        top = scored[: self.config.top_k]
+
+        cells_lookup_for_dedup = {
+            row["cell_id"]: row for row in cells_df.to_dicts()
+        }
+        seen_signatures: set[tuple[str, ...]] = set()
+        top: list[dict] = []
+        for cand in scored:
+            kws = self._aggregate_neighbor_keywords(
+                cand["neighbor_cells"], cells_lookup_for_dedup
+            )
+            sig = tuple(sorted(kws[:3]))
+            if sig in seen_signatures:
+                continue
+            seen_signatures.add(sig)
+            top.append(cand)
+            if len(top) >= self.config.top_k:
+                break
 
         # 5. 인접 키워드 / 카테고리 / 대표 논문 보강
         cells_lookup = {row["cell_id"]: row for row in cells_df.to_dicts()}
@@ -173,15 +189,24 @@ class AdjacentGapDetector:
 
     @staticmethod
     def _build_summary(neighbor_keywords: list[str]) -> str:
-        """후보를 연구자 언어로 요약하는 한 줄 제목 (UI 카드의 title 위치)."""
+        """후보를 연구자 언어로 요약하는 '기회 문장' (UI 카드의 title 위치).
+
+        키워드 조합 표기가 아닌 자연 문장 — '한눈에 연구 기회로 읽히게'.
+        """
         if not neighbor_keywords:
-            return "주변 분야 대비 저밀도 영역"
+            return "주변 분야 대비 직접 연구가 적은 영역"
         kws = neighbor_keywords[:3]
+        primary = kws[0]
         if len(kws) == 1:
-            return f"{kws[0]} 인접 저밀도 영역"
+            return f"{primary} 주변은 활발하지만, 인접 조합의 직접 논문은 드뭅니다"
+        secondary = kws[1]
         if len(kws) == 2:
-            return f"{kws[0]} × {kws[1]} 교차 저밀도 영역"
-        return f"{kws[0]} × {kws[1]} (+ {kws[2]}) 교차 저밀도 영역"
+            return f"{primary}은 활발하지만, {secondary}와의 직접 결합 연구는 드뭅니다"
+        third = kws[2]
+        return (
+            f"{primary}은 활발하지만, {secondary} · {third}로 이어지는 "
+            f"직접 결합 연구는 드뭅니다"
+        )
 
     def _generate_candidate_cells(self, cells_df: pl.DataFrame) -> list[str]:
         """후보 셀 = 기존 셀들의 k-ring 이웃 중 자기 자신 외 모든 셀."""

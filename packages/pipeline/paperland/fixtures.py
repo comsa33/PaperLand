@@ -69,12 +69,15 @@ NEUTRAL_FILLERS = ["empirical study", "ablation", "scalability", "case study"]
 
 def generate_fixtures(
     out_dir: Path,
-    n_papers: int = 300,
+    n_papers: int = 600,
     n_clusters: int = 8,
     seed: int = 42,
     embedding_dim: int = 32,
 ) -> Manifest:
-    """합성 논문으로 V0 artifact 생산."""
+    """합성 논문으로 V0 artifact 생산.
+
+    파라미터 기본값: 클러스터당 평균 ~75편 → 활발한 점유 영역과 명확한 빈 영역 대비.
+    """
     rng = np.random.default_rng(seed)
     pyrand = Random(seed)
 
@@ -95,7 +98,7 @@ def generate_fixtures(
 
     # HDBSCAN — 합성 데이터 기준 small min_cluster_size
     cluster_labels = cluster_hdbscan(
-        embeddings, min_cluster_size=max(5, n_papers // (n_clusters * 4))
+        embeddings, min_cluster_size=max(8, n_papers // (n_clusters * 3))
     )
     cluster_keywords = extract_cluster_keywords(papers_df, cluster_labels)
     paper_keywords = keywords_per_paper(papers_df, cluster_labels, cluster_keywords)
@@ -123,6 +126,9 @@ def generate_fixtures(
         papers_with_coords=papers_with_coords,
     )
 
+    # 클러스터 centroid 산출 — 지도 위 영역 라벨용
+    cluster_centroids = _compute_cluster_centroids(coords_df, cluster_labels, papers_df)
+
     # 빌드
     return build_artifacts(
         out_dir=Path(out_dir),
@@ -130,10 +136,36 @@ def generate_fixtures(
         coords_df=coords_df,
         papers_df=papers_df,
         cluster_labels=cluster_keywords,
+        cluster_centroids=cluster_centroids,
         whitespace_top=whitespace,
         embedding_model="synthetic-fixture@v0",
         categories=["cs.CL"],
     )
+
+
+def _compute_cluster_centroids(
+    coords_df: pl.DataFrame,
+    cluster_labels_arr: np.ndarray,
+    papers_df: pl.DataFrame,
+) -> dict[int, dict[str, float]]:
+    """각 클러스터의 (x, y) 중심점 — 지도 라벨 배치용."""
+    arxiv_to_label = dict(zip(papers_df["arxiv_id"].to_list(), cluster_labels_arr))
+    out: dict[int, dict[str, float]] = {}
+    grouped: dict[int, list[tuple[float, float]]] = {}
+    for row in coords_df.to_dicts():
+        label = int(arxiv_to_label.get(row["arxiv_id"], -1))
+        if label == -1:
+            continue
+        grouped.setdefault(label, []).append((row["x"], row["y"]))
+    for cid, points in grouped.items():
+        xs = [p[0] for p in points]
+        ys = [p[1] for p in points]
+        out[cid] = {
+            "x": float(sum(xs) / len(xs)),
+            "y": float(sum(ys) / len(ys)),
+            "count": len(points),
+        }
+    return out
 
 
 def _synthesize_papers(
@@ -143,9 +175,19 @@ def _synthesize_papers(
     rng: np.random.Generator,
     pyrand: Random,
 ) -> tuple[pl.DataFrame, np.ndarray, np.ndarray]:
-    """클러스터 구조를 가진 합성 논문 + 임베딩 생성."""
+    """클러스터 구조를 가진 합성 논문 + 임베딩 생성.
+
+    중심은 첫 2차원에 원형 배치하여 2D 투영 후 명확한 영역 분리가 보이게 함.
+    클러스터 사이는 비워두어 AdjacentGap detector가 명확한 후보를 잡도록 유도.
+    """
     n_clusters = min(n_clusters, len(TOPIC_VOCABS))
-    centers = rng.normal(0, 5, size=(n_clusters, embedding_dim))
+    # 첫 2차원: 원형 배치 — h3 res3 격자 기준 클러스터들이 서로 1~3 셀 거리에 오도록
+    # 가까이 두어, 사이 공백 셀이 명확한 "공백 후보"가 되게 함.
+    radius = 4.0
+    angles = np.linspace(0, 2 * np.pi, n_clusters, endpoint=False)
+    centers = rng.normal(0, 0.5, size=(n_clusters, embedding_dim))
+    centers[:, 0] = radius * np.cos(angles)
+    centers[:, 1] = radius * np.sin(angles)
 
     rows = []
     embeddings = []
@@ -154,7 +196,11 @@ def _synthesize_papers(
     for i in range(n_papers):
         cid = i % n_clusters
         vocab = TOPIC_VOCABS[cid]
-        emb = centers[cid] + rng.normal(0, 1, size=embedding_dim)
+        # 클러스터 내부는 매우 좁게 — 첫 2차원만 작은 노이즈로 hex 셀에 강하게 집중
+        emb = centers[cid].copy()
+        # 2D 좌표는 매우 좁게 — 클러스터당 1~3 hex 셀에 집중되어 명확한 영역화
+        emb[:2] += rng.normal(0, 0.25, size=2)
+        emb[2:] += rng.normal(0, 0.5, size=embedding_dim - 2)
         embeddings.append(emb)
         labels.append(cid)
 
