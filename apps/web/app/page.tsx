@@ -35,6 +35,12 @@ export default function HomePage() {
     if (!hasCandidates && viewMode === "list") setViewMode("map");
   }, [hasCandidates, viewMode, setViewMode]);
 
+  // lineage 모드인데 selectedCandidate가 사라진 경우 (셀 클릭으로 후보 해제 등)
+  // 무의미한 빈 화면에 갇히지 않게 자동으로 map으로 복귀.
+  useEffect(() => {
+    if (viewMode === "lineage" && !selectedCandidate) setViewMode("map");
+  }, [viewMode, selectedCandidate, setViewMode]);
+
   // 데이터의 연도 범위 (papers_index 기준)
   const yearRange = useMemo(() => {
     if (!data) return null;

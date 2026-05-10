@@ -31,6 +31,7 @@ interface RegionLabel {
 export function Map({ cells, papers, whitespace, clusters }: MapProps) {
   const selectedCellId = useUIStore((s) => s.selectedCellId);
   const selectCell = useUIStore((s) => s.selectCell);
+  const selectCandidate = useUIStore((s) => s.selectCandidate);
   const locale = useUIStore((s) => s.locale);
 
   const whitespaceCellIds = useMemo(
@@ -125,7 +126,14 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
           : [180, 200, 230, 70],
       onClick: (info) => {
         const cell = info.object as Cell | undefined;
-        selectCell(cell?.cell_id ?? null);
+        if (!cell?.cell_id) {
+          selectCell(null);
+          return;
+        }
+        // 공백 후보 셀이면 selectedCandidate까지 함께 설정 — 흐름 탭이 자동 활성.
+        const cand = whitespace.find((w) => w.cell_id === cell.cell_id);
+        if (cand) selectCandidate(cand);
+        else selectCell(cell.cell_id);
       },
       updateTriggers: {
         getFillColor: [selectedCellId, whitespaceCellIds],
@@ -203,7 +211,9 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
     regionLabels,
     selectedCellId,
     whitespaceCellIds,
+    whitespace,
     selectCell,
+    selectCandidate,
   ]);
 
   return (
