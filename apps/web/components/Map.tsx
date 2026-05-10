@@ -40,14 +40,14 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
   );
 
   const regionLabels = useMemo<RegionLabel[]>(() => {
-    const out: RegionLabel[] = [];
+    const all: RegionLabel[] = [];
     for (const [cid, c] of Object.entries(clusters)) {
       if (
         c.label &&
         typeof c.centroid_x === "number" &&
         typeof c.centroid_y === "number"
       ) {
-        out.push({
+        all.push({
           id: cid,
           label: c.label,
           x: c.centroid_x,
@@ -56,7 +56,28 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
         });
       }
     }
-    return out;
+    if (all.length === 0) return all;
+    // Greedy collision avoidance — 큰 클러스터부터 배치, 너무 가까우면 작은 쪽 라벨 숨김.
+    // 임계값은 데이터 범위의 일정 비율 (zoom 무관 단순 휴리스틱).
+    const xs = all.map((r) => r.x);
+    const ys = all.map((r) => r.y);
+    const range = Math.max(
+      Math.max(...xs) - Math.min(...xs),
+      Math.max(...ys) - Math.min(...ys),
+      1
+    );
+    const minDist = range * 0.07;
+    const sorted = [...all].sort((a, b) => b.count - a.count);
+    const placed: RegionLabel[] = [];
+    for (const cand of sorted) {
+      const tooClose = placed.some((p) => {
+        const dx = p.x - cand.x;
+        const dy = p.y - cand.y;
+        return Math.sqrt(dx * dx + dy * dy) < minDist;
+      });
+      if (!tooClose) placed.push(cand);
+    }
+    return placed;
   }, [clusters]);
 
   const initialViewState = useMemo(() => {

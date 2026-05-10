@@ -20,7 +20,6 @@ export default function HomePage() {
   const viewMode = useUIStore((s) => s.viewMode);
   const setViewMode = useUIStore((s) => s.setViewMode);
   const selectCandidate = useUIStore((s) => s.selectCandidate);
-  const selectedCandidate = useUIStore((s) => s.selectedCandidate);
 
   useEffect(() => {
     hydrateLocale();
@@ -60,7 +59,7 @@ make web`}
 
   const isFixture = data.manifest.embedding_model.startsWith("synthetic-fixture");
   const isList = viewMode === "list";
-  const inDetail = !isList && selectedCandidate !== null;
+  const inDetail = !isList;
 
   const backToList = () => {
     selectCandidate(null);
@@ -82,7 +81,7 @@ make web`}
             <button
               type="button"
               onClick={backToList}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-semibold border border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))] transition"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-semibold border border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))] transition whitespace-nowrap"
             >
               <ArrowLeft className="w-4 h-4" />
               {ui.backToList[locale]}
@@ -145,7 +144,7 @@ make web`}
             onClick={() =>
               setLocale((locale === "ko" ? "en" : "ko") as Locale)
             }
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))] transition"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))] transition whitespace-nowrap shrink-0"
             aria-label="Toggle language"
           >
             <Languages className="w-3.5 h-3.5" />
@@ -155,7 +154,7 @@ make web`}
       </header>
 
       <div className="flex-1 flex overflow-hidden relative">
-        {isList || !selectedCandidate ? (
+        {isList ? (
           <CandidateGrid candidates={data.whitespace} />
         ) : viewMode === "map" ? (
           <>

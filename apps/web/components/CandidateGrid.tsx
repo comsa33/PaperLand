@@ -16,13 +16,38 @@ interface Scored {
   matchCount: number;
 }
 
+/* 약어/별칭 사전 — 사용자가 'kg', 'qa', 'llm'으로 검색해도 매칭되도록.
+   한 토큰을 다중어 phrase로 확장하거나, 다중어 → 짧은 약어로 모두 커버.
+*/
+const ALIAS: Record<string, string[]> = {
+  qa: ["question answering"],
+  kg: ["knowledge graph"],
+  kgs: ["knowledge graphs"],
+  llm: ["large language model", "large language"],
+  llms: ["large language models", "language llms", "large language"],
+  rag: ["retrieval augmented generation", "retrieval"],
+  cot: ["chain of thought"],
+  rl: ["reinforcement learning"],
+  rlhf: ["rlhf", "reinforcement learning from human feedback"],
+  ner: ["named entity recognition"],
+  mt: ["machine translation"],
+  nlp: ["natural language processing"],
+  asr: ["speech recognition"],
+  nlu: ["natural language understanding"],
+  nlg: ["natural language generation"],
+  vqa: ["visual question answering"],
+  vlm: ["vision language model"],
+  ie: ["information extraction"],
+  qg: ["question generation"],
+};
+
 export function CandidateGrid({ candidates }: Props) {
   const locale = useUIStore((s) => s.locale);
   const selectCandidate = useUIStore((s) => s.selectCandidate);
   const setViewMode = useUIStore((s) => s.setViewMode);
   const [topic, setTopic] = useState("");
 
-  const tokens = useMemo(() => parseTokens(topic), [topic]);
+  const query = useMemo(() => parseQuery(topic), [topic]);
 
   const ranked = useMemo<Scored[]>(() => {
     const base = candidates.map((c) => ({
@@ -30,21 +55,21 @@ export function CandidateGrid({ candidates }: Props) {
       matched: new Set<string>(),
       matchCount: 0,
     }));
-    if (tokens.length === 0) return base;
+    if (query.segments.length === 0) return base;
     const scored = candidates.map((c) => {
-      const haystack = [
-        ...c.neighbor_keywords,
-        ...(c.summary ? [c.summary] : []),
-        ...(c.summary_en ? [c.summary_en] : []),
-      ]
-        .join(" · ")
-        .toLowerCase();
+      const haystack = normalize(
+        [
+          ...c.neighbor_keywords,
+          c.summary_ko ?? "",
+          c.summary_en ?? "",
+          c.summary ?? "",
+        ].join(" · ")
+      );
       const matched = new Set<string>();
       let count = 0;
-      for (const tok of tokens) {
-        if (!tok) continue;
-        if (haystack.includes(tok)) {
-          matched.add(tok);
+      for (const seg of query.segments) {
+        if (seg.variants.some((v) => fuzzyContains(haystack, v))) {
+          matched.add(seg.original);
           count += 1;
         }
       }
@@ -56,9 +81,10 @@ export function CandidateGrid({ candidates }: Props) {
       if (b.matchCount !== a.matchCount) return b.matchCount - a.matchCount;
       return b.candidate.score - a.candidate.score;
     });
-  }, [candidates, tokens]);
+  }, [candidates, query]);
 
-  const noMatch = tokens.length > 0 && ranked.every((r) => r.matchCount === 0);
+  const noMatch =
+    query.segments.length > 0 && ranked.every((r) => r.matchCount === 0);
 
   const open = (c: WhitespaceCandidate) => {
     selectCandidate(c);
@@ -102,6 +128,7 @@ export function CandidateGrid({ candidates }: Props) {
                   index={i}
                   candidate={r.candidate}
                   matched={r.matched}
+                  variants={query.allVariants}
                   locale={locale}
                   onOpen={() => open(r.candidate)}
                 />
@@ -166,12 +193,14 @@ function Card({
   index,
   candidate,
   matched,
+  variants,
   locale,
   onOpen,
 }: {
   index: number;
   candidate: WhitespaceCandidate;
   matched: Set<string>;
+  variants: string[];
   locale: "ko" | "en";
   onOpen: () => void;
 }) {
@@ -225,7 +254,7 @@ function Card({
         <div className="flex flex-wrap gap-1.5">
           {kws.map((k) => {
             const ko = locale === "ko" ? translateKeyword(k) : null;
-            const hit = isKeywordMatched(k, matched);
+            const hit = isKeywordMatched(k, variants);
             return (
               <span
                 key={k}
@@ -273,20 +302,74 @@ function Card({
   );
 }
 
-function parseTokens(input: string): string[] {
-  const cleaned = input
-    .toLowerCase()
-    .split(/[,;\n]+/)
-    .flatMap((s) => s.split(/\s{2,}/))
-    .map((s) => s.trim())
-    .filter((s) => s.length >= 2);
-  return Array.from(new Set(cleaned));
+interface SegMatch {
+  /** 사용자가 입력한 그대로 (lowercase, 정규화) — 매칭 표시용 키 */
+  original: string;
+  /** 검색 시 시도할 phrase 목록 — 원문 + alias 확장 + 부분 토큰 */
+  variants: string[];
 }
 
-function isKeywordMatched(kw: string, matched: Set<string>): boolean {
-  const norm = kw.toLowerCase();
-  for (const tok of matched) {
-    if (norm.includes(tok) || tok.includes(norm)) return true;
+interface ParsedQuery {
+  segments: SegMatch[];
+  /** 칩 하이라이트용 — 모든 segment의 variants 합집합 */
+  allVariants: string[];
+}
+
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function fuzzyContains(haystack: string, needle: string): boolean {
+  if (needle.length < 2) return false;
+  if (haystack.includes(needle)) return true;
+  // 단복수 — 마지막 단어의 's' 토글
+  const words = needle.split(" ");
+  const last = words[words.length - 1];
+  if (last.length < 3) return false;
+  const altLast = last.endsWith("s") ? last.slice(0, -1) : last + "s";
+  const alt = [...words.slice(0, -1), altLast].join(" ");
+  return haystack.includes(alt);
+}
+
+function parseQuery(input: string): ParsedQuery {
+  const segments: SegMatch[] = [];
+  const allVariants = new Set<string>();
+  const parts = input
+    .split(/[,;\n]+/)
+    .map((s) => normalize(s))
+    .filter((s) => s.length >= 2);
+  for (const seg of parts) {
+    const tokens = seg.split(/\s+/).filter((t) => t.length >= 2);
+    if (tokens.length === 0) continue;
+    const variants = new Set<string>();
+    // 원문 phrase
+    variants.add(seg);
+    // 토큰별 alias 확장
+    for (const tok of tokens) {
+      variants.add(tok);
+      const aliases = ALIAS[tok];
+      if (aliases) for (const a of aliases) variants.add(a);
+    }
+    // 다중어 segment를 alias 치환한 버전 (예: "kg qa" → "knowledge graph question answering")
+    if (tokens.length > 1) {
+      const subs = tokens.map((t) => (ALIAS[t] ? ALIAS[t][0] : t));
+      variants.add(subs.join(" "));
+    }
+    const variantList = Array.from(variants);
+    segments.push({ original: seg, variants: variantList });
+    for (const v of variantList) allVariants.add(v);
+  }
+  return { segments, allVariants: Array.from(allVariants) };
+}
+
+function isKeywordMatched(kw: string, variants: string[]): boolean {
+  const norm = normalize(kw);
+  for (const v of variants) {
+    if (fuzzyContains(norm, v) || fuzzyContains(v, norm)) return true;
   }
   return false;
 }

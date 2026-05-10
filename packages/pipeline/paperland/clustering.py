@@ -120,11 +120,28 @@ def extract_cluster_keywords(
     ])
     is_global = appears_in_clusters >= max(2, int(0.6 * n_clusters_total))
 
+    # 의미가 약하거나 사용자에게 라벨로서 신뢰를 깎는 bigram. 여기에 등장하면 점수 0.
+    # ('large language' 단독은 노이즈 — 'large language model' 같은 trigram이 데이터에
+    # 충분히 있을 때만 의미가 있는데, 우리는 bigram 윈도우라 그런 trigram이 잡히지 않음.)
+    weak_bigrams = {
+        "large language",  # 'large language model' 의 일부 — 단독 bigram은 노이즈
+        "language llms",
+        "language large",
+        "language language",
+        "llms llms",
+        "sequence sequence",
+        "model model",
+        "data data",
+        "task task",
+    }
+    is_weak = np.array([name in weak_bigrams for name in feature_names])
+
     result: dict[int, list[str]] = {}
     for idx, cid in enumerate(cluster_ids):
         row = tfidf[idx].toarray().flatten()
-        # 글로벌 키워드는 점수에 0.3배 페널티 (제거하지는 않음 — fallback용)
+        # 글로벌 키워드는 점수에 0.3배 페널티, 약한 bigram은 0 (제외)
         adjusted = row * np.where(is_global, 0.3, 1.0)
+        adjusted = adjusted * np.where(is_weak, 0.0, 1.0)
         order = adjusted.argsort()[::-1]
 
         multiword_picks: list[str] = []

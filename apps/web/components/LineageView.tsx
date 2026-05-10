@@ -457,7 +457,7 @@ function BridgeNode({
       }}
     >
       <p className="text-[11px] font-bold text-orange-600 dark:text-orange-300 uppercase tracking-wider">
-        {locale === "ko" ? "비어 있는 결합 후보" : "Empty combination"}
+        {locale === "ko" ? "덜 탐색된 결합" : "Underexplored bridge"}
       </p>
       <p className="mt-1.5 text-[13px] leading-snug font-semibold text-orange-900 dark:text-orange-200">
         {summary}
@@ -483,7 +483,7 @@ function Legend({ flows, locale }: { flows: Flow[]; locale: "ko" | "en" }) {
           className="inline-block w-3 h-3 rounded-full border-2"
           style={{ borderStyle: "dashed", borderColor: "#f59e0b", background: "#fff7ed" }}
         />
-        {locale === "ko" ? "비어 있는 결합 후보" : "Empty combination"}
+        {locale === "ko" ? "덜 탐색된 결합" : "Underexplored bridge"}
       </span>
     </div>
   );

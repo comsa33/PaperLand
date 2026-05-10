@@ -552,22 +552,22 @@ class AdjacentGapDetector:
             ko = (
                 f"기반 연구({min(years)})와 최근 활발 연구({max(years)}) 사이 "
                 f"{gap_years}년 동안 인접 영역 {n_total}편이 쌓였지만, "
-                f"이들을 직접 잇는 논문은 이 셀에서 거의 보이지 않습니다."
+                f"이 두 흐름을 직접 잇는 연구는 이 셀에서 상대적으로 드뭅니다."
             )
             en = (
                 f"Across the {gap_years}-year span from foundations ({min(years)}) "
                 f"to recent active work ({max(years)}), {n_total} adjacent papers "
-                f"accumulate — yet papers directly connecting them are nearly "
-                f"absent in this cell."
+                f"accumulate — papers directly bridging the two flows remain "
+                f"underexplored in this cell."
             )
         else:
             ko = (
                 f"비슷한 시기({min(years)}–{max(years)})의 인접 연구 {n_total}편 "
-                f"사이에서, 이 조합을 직접 다룬 논문은 적습니다."
+                f"사이에서, 이 조합을 직접 다룬 연구는 상대적으로 드뭅니다."
             )
             en = (
                 f"Among {n_total} contemporaneous adjacent papers "
-                f"({min(years)}–{max(years)}), direct combinations are scarce."
+                f"({min(years)}–{max(years)}), direct bridges remain underexplored."
             )
         return {
             "foundations": foundations,

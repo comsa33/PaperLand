@@ -1,11 +1,17 @@
 .PHONY: help install fixtures fetch real-build web dev test lint clean
 
+# 다른 분야로 바꾸려면: make fetch CATEGORY=cs.LG  (cs.AI, cs.CV, stat.ML 등)
+# 같은 변수로 real-build 의 parquet 경로도 자동 매핑됩니다.
+CATEGORY ?= cs.CL
+PARQUET = data/raw/arxiv-$(subst .,-,$(CATEGORY)).parquet
+
 help:
 	@echo "PaperLand 개발 명령"
 	@echo "  make install      - Python + Node 의존성 설치"
 	@echo "  make fixtures     - 합성 픽스처 생성 (apps/web/public/data)"
-	@echo "  make fetch        - arXiv API에서 cs.CL 실데이터 2k편 수집"
-	@echo "  make real-build   - 실데이터 → V0 artifact (임베딩+UMAP, GPU 권장)"
+	@echo "  make fetch        - arXiv API에서 \$(CATEGORY) 실데이터 수집 (default: cs.CL)"
+	@echo "                      ex) make fetch CATEGORY=cs.LG"
+	@echo "  make real-build   - 실데이터 → V0 artifact (CATEGORY 변수 동일하게 사용)"
 	@echo "  make web          - 프론트 dev 서버 (localhost:3000)"
 	@echo "  make dev          - fixtures + web 한 번에"
 	@echo "  make test         - 파이프라인 테스트"
@@ -21,12 +27,12 @@ fixtures:
 
 fetch:
 	cd packages/pipeline && uv run paperland fetch \
-		--out ../../data/raw/arxiv-cs-cl.parquet \
-		--category cs.CL --per-year 400 --years 5
+		--out ../../$(PARQUET) \
+		--category $(CATEGORY) --per-year 400 --years 5
 
 real-build:
 	cd packages/pipeline && uv run paperland build \
-		--papers ../../data/raw/arxiv-cs-cl.parquet \
+		--papers ../../$(PARQUET) \
 		--out ../../apps/web/public/data
 
 web:

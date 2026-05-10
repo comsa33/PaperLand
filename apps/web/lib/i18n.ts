@@ -171,7 +171,7 @@ const STRINGS = {
     en: 'Each card is a research question synthesised from areas where neighbors are active but direct combinations are scarce. Click a card to inspect adjacent flow and verification links.',
   },
   openDetail: { ko: "후보 자세히 보기", en: "Open detail" },
-  backToList: { ko: "← 후보 목록으로", en: "← Back to list" },
+  backToList: { ko: "후보 목록으로", en: "Back to list" },
   detailMapTab: { ko: "지도에서 위치 보기", en: "Show on map" },
   detailFlowTab: { ko: "연도별 흐름 보기", en: "Year-by-year flow" },
   detailSidebarHint: {
