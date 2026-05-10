@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, GitBranch, Lightbulb, Search } from "lucide-react";
 import { pickBridgeText, pickCandidateText, translateKeyword, ui } from "@/lib/i18n";
 import { useUIStore } from "@/lib/store";
@@ -27,9 +27,11 @@ export function SidePanel({ cells, papers, whitespace }: Props) {
     [cells, selectedCellId]
   );
   const cellPapers = useMemo(
-    () => papers.filter((p) => p.cell_id === selectedCellId).slice(0, 5),
+    () => papers.filter((p) => p.cell_id === selectedCellId),
     [papers, selectedCellId]
   );
+  const [papersExpanded, setPapersExpanded] = useState(false);
+  useEffect(() => setPapersExpanded(false), [selectedCellId]);
   const candidate = useMemo(
     () =>
       selectedCandidate ??
@@ -93,21 +95,51 @@ export function SidePanel({ cells, papers, whitespace }: Props) {
           {/* 후보 선택 시에는 cell의 잡음성 논문을 숨김 — 후보 요약과 주제 충돌 회피 */}
           {cellPapers.length > 0 && !candidate && (
             <section>
-              <h4 className="text-sm font-semibold mb-2">{ui.papersInCell[locale]}</h4>
+              <div className="flex items-baseline justify-between mb-2 gap-3">
+                <h4 className="text-sm font-semibold">
+                  {ui.papersInCell[locale]}
+                </h4>
+                <span className="text-xs text-[hsl(var(--foreground))]/55">
+                  {locale === "ko"
+                    ? papersExpanded
+                      ? `전체 ${cellPapers.length}편`
+                      : `대표 5편 · 전체 ${cellPapers.length}편`
+                    : papersExpanded
+                      ? `all ${cellPapers.length}`
+                      : `top 5 of ${cellPapers.length}`}
+                </span>
+              </div>
               <ul className="space-y-2">
-                {cellPapers.map((p) => (
-                  <li
-                    key={p.id}
-                    className="text-sm leading-relaxed p-3 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
-                  >
-                    <p className="font-medium">{p.title}</p>
-                    <p className="mt-1 text-xs text-[hsl(var(--foreground))]/55 font-mono">
-                      {p.id}
-                      {p.year && ` · ${p.year}`}
-                    </p>
-                  </li>
-                ))}
+                {(papersExpanded ? cellPapers : cellPapers.slice(0, 5)).map(
+                  (p) => (
+                    <li
+                      key={p.id}
+                      className="text-sm leading-relaxed p-3 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
+                    >
+                      <p className="font-medium">{p.title}</p>
+                      <p className="mt-1 text-xs text-[hsl(var(--foreground))]/55 font-mono">
+                        {p.id}
+                        {p.year && ` · ${p.year}`}
+                      </p>
+                    </li>
+                  )
+                )}
               </ul>
+              {cellPapers.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => setPapersExpanded((v) => !v)}
+                  className="mt-2 text-xs font-semibold text-blue-600 dark:text-blue-300 hover:underline"
+                >
+                  {papersExpanded
+                    ? locale === "ko"
+                      ? "접기"
+                      : "Collapse"
+                    : locale === "ko"
+                      ? `더 보기 (+${cellPapers.length - 5})`
+                      : `Show more (+${cellPapers.length - 5})`}
+                </button>
+              )}
             </section>
           )}
         </div>

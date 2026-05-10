@@ -255,8 +255,12 @@ function MapLegend({
     locale === "ko"
       ? `셀 ${cellCount} · 논문 ${paperCount}편 · 클릭으로 상세`
       : `${cellCount} cells · ${paperCount} papers · click to inspect`;
+  const meaning =
+    locale === "ko"
+      ? "점 1개 = 논문 1편. 가까울수록 제목·초록 의미가 비슷합니다 (SPECTER2 → UMAP 2D)."
+      : "Each dot = 1 paper. Closer = semantically similar by title/abstract (SPECTER2 → UMAP 2D).";
   return (
-    <div className="absolute bottom-5 left-5 z-10 bg-slate-900/90 backdrop-blur border border-white/10 rounded-md px-4 py-3 text-sm text-white/85 space-y-2 shadow-lg pointer-events-none">
+    <div className="absolute bottom-5 left-5 z-10 bg-slate-900/90 backdrop-blur border border-white/10 rounded-md px-4 py-3 text-sm text-white/85 space-y-2 shadow-lg pointer-events-none max-w-[26rem]">
       <div className="flex items-center gap-2.5">
         <div className="w-4 h-4 rounded-sm bg-blue-500" />
         <span>{occupied}</span>
@@ -269,9 +273,10 @@ function MapLegend({
         <div className="w-2.5 h-2.5 rounded-full bg-white" />
         <span>{dot}</span>
       </div>
-      <div className="pt-1.5 mt-1.5 border-t border-white/15 text-xs text-white/60">
-        {summary}
+      <div className="pt-1.5 mt-1.5 border-t border-white/15 text-xs text-white/60 leading-relaxed">
+        {meaning}
       </div>
+      <div className="text-xs text-white/55 font-mono">{summary}</div>
     </div>
   );
 }

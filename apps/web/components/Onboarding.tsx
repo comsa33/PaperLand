@@ -53,12 +53,21 @@ export function Onboarding() {
         {!collapsed && (
           <div className="px-4 pb-4 pt-1 text-sm text-white/80 space-y-3 leading-relaxed">
             <Item
+              icon={<MapIcon className="w-4 h-4 text-emerald-300" />}
+              title={locale === "ko" ? "이 지도는 의미 지도" : "This is a semantic map"}
+              body={
+                locale === "ko"
+                  ? "점 1개 = 논문 1편. 제목·초록 임베딩(SPECTER2)을 UMAP으로 2D 투영해 가까운 점일수록 의미가 비슷합니다. 인용 그래프나 학회 분류가 아닙니다."
+                  : "Each dot = 1 paper. We embed titles/abstracts with SPECTER2 and project to 2D via UMAP — closer = more semantically similar. Not a citation graph or venue layout."
+              }
+            />
+            <Item
               icon={<Compass className="w-4 h-4 text-orange-300" />}
               title={locale === "ko" ? "선택한 후보의 위치" : "Position of this candidate"}
               body={
                 locale === "ko"
-                  ? "주황 강조가 후보 셀입니다. 주변 진한 파랑은 활발한 인접 영역."
-                  : "Orange highlight is the candidate cell; surrounding dark blue is active neighborhood."
+                  ? "주황 강조가 후보 셀입니다. 셀 색이 진한 파랑일수록 그 영역의 논문 수가 많고, 주변이 진한데 자기 셀이 비어있을 때 공백 후보가 됩니다."
+                  : "Orange highlight is the candidate cell. Darker blue = more papers in that hex; whitespace is a sparse cell surrounded by dense neighbors."
               }
             />
             <Item

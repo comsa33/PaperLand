@@ -146,8 +146,12 @@ const STRINGS = {
   },
   datasetLabel: { ko: "현재 분야", en: "Current category" },
   datasetSwitchHint: {
-    ko: "다른 분야 (cs.LG · cs.AI · cs.CV 등) 데이터셋은 운영자가 빌드해야 표시됩니다. 화면에서의 직접 전환은 다음 라운드 예정.",
-    en: "Other categories (cs.LG · cs.AI · cs.CV …) need an operator-side rebuild. In-app switching is scheduled for the next round.",
+    ko: "현재 빌드된 데이터셋만 보입니다. 새 분야는 운영자가 `make fetch CATEGORY=… && make real-build CATEGORY=…`로 추가합니다.",
+    en: "Only built datasets are shown. To add a new category, an operator must run `make fetch CATEGORY=… && make real-build CATEGORY=…`.",
+  },
+  mapMeaning: {
+    ko: "지도 좌표는 SPECTER2 임베딩 → UMAP 2D 투영. 가까이 있을수록 임베딩 의미적으로 비슷한 논문군이고, h3 hex로 격자화한 영역의 색은 논문 밀도입니다.",
+    en: "Map coordinates: SPECTER2 embedding → UMAP 2D projection. Closer points are semantically similar; hex shading reflects paper density per h3 cell.",
   },
   fixtureBadge: {
     ko: "⚠️ 샘플 데모 — 실제 arXiv 지형 아님",

@@ -52,9 +52,15 @@ export async function loadCatalog(): Promise<Catalog> {
 export async function loadMapData(slug: string): Promise<MapData> {
   const datasetBase = `${BASE}/${slug}`;
   const latest = await fetchJson<LatestPointer>(`${datasetBase}/latest.json`);
-  const epochBase = `${datasetBase}/${latest.epoch}`;
+  // latest.manifest 가 있으면 그것을 신뢰 (장기 마이그레이션 대비 — manifest 경로가
+  // 늘 epoch/manifest.json일 거란 가정을 latest.json 단계로 끌어올림).
+  // 없으면 epoch 디렉토리에서 조립.
+  const manifestUrl = latest.manifest
+    ? `${datasetBase}/${latest.manifest}`
+    : `${datasetBase}/${latest.epoch}/manifest.json`;
+  const epochBase = manifestUrl.replace(/\/manifest\.json$/, "");
   const [manifest, cells, papers, clusters, whitespace] = await Promise.all([
-    fetchJson<Manifest>(`${epochBase}/manifest.json`),
+    fetchJson<Manifest>(manifestUrl),
     fetchJson<Cell[]>(`${epochBase}/cells.json`),
     fetchJson<PaperPoint[]>(`${epochBase}/papers_index.json`),
     fetchJson<Record<string, ClusterLabel>>(`${epochBase}/cluster_labels.json`),
