@@ -104,7 +104,7 @@ make web`}
             aria-pressed={viewMode === "lineage"}
           >
             <GitBranch className="w-4 h-4" />
-            {locale === "ko" ? "계보 모드" : "Lineage"}
+            {locale === "ko" ? "연구 흐름 보기" : "Research flow"}
           </button>
         </nav>
         {isFixture && (
@@ -137,10 +137,10 @@ make web`}
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        <WhitespacePanel candidates={data.whitespace} />
-        <div className="flex-1 relative bg-[hsl(var(--background))]">
-          {viewMode === "map" ? (
-            <>
+        {viewMode === "map" ? (
+          <>
+            <WhitespacePanel candidates={data.whitespace} />
+            <div className="flex-1 relative bg-[hsl(var(--background))]">
               <Map
                 cells={data.cells}
                 papers={data.papers}
@@ -148,16 +148,19 @@ make web`}
                 clusters={data.clusters}
               />
               <Onboarding />
-            </>
-          ) : (
+            </div>
+            <SidePanel
+              cells={data.cells}
+              papers={data.papers}
+              whitespace={data.whitespace}
+            />
+          </>
+        ) : (
+          // 흐름 보기: 양쪽 패널을 숨겨 가운데 풀폭으로 사용
+          <div className="flex-1 relative bg-[hsl(var(--background))] overflow-hidden">
             <LineageView candidates={data.whitespace} />
-          )}
-        </div>
-        <SidePanel
-          cells={data.cells}
-          papers={data.papers}
-          whitespace={data.whitespace}
-        />
+          </div>
+        )}
       </div>
     </main>
   );

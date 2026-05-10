@@ -179,5 +179,12 @@ def _english_stopwords() -> frozenset[str]:
         "study", "studies", "method", "methods", "approach", "approaches",
         "result", "results", "model", "models", "training", "experiments",
         "performance", "evaluation", "ablation", "case", "empirical",
+        # cs.CL 실데이터에서 너무 자주 나와 라벨로 부적합한 일반어
+        "novel", "propose", "proposed", "achieve", "achieves",
+        "art", "state",  # "state of the art" → bigram "state art" 방지
+        "real", "world",  # "real world"
+        "open", "source",  # "open source"
+        "scale", "scales", "scalable",
+        "show", "shows", "shown", "demonstrate", "demonstrates",
     }
     return frozenset(ENGLISH_STOP_WORDS) | extras
