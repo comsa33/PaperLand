@@ -210,10 +210,29 @@ const STRINGS = {
     en: (n: string, o: number) => `neighbors ~${n} vs self ${o}`,
   },
   examplePrefix: { ko: "예: ", en: "e.g. " },
-  whatToDoTitle: { ko: "그래서 뭘 하면 되나", en: "What to do next" },
+  whatToDoTitle: {
+    ko: "그래서 뭘 하면 되나 — 5분 검증 플로우",
+    en: "What to do next — 5-minute validation flow",
+  },
   whatToDoBody: {
     ko: "아래 인접 영역의 대표 논문 5편을 먼저 살펴보고, 같은 키워드 조합이 실제로 비어있는지 Scholar 검색 쿼리로 확인하세요. 진짜 공백이라면 연구 주제 후보로 검토할 가치가 있습니다.",
     en: "Skim the 5 representative neighbor papers below, then verify with the Scholar queries to confirm the gap is real. If it is, this is a candidate worth investigating as a research topic.",
+  },
+  whatToDoSteps: {
+    ko: [
+      ["아래 ", "인접 대표 논문 5편", "의 제목을 훑어 이 영역이 어떤 분야 사이에 위치하는지 빠르게 파악"],
+      ["", "Scholar 검색 쿼리", " 1–2개를 클릭해 외부 검색에서 같은 조합의 논문이 실제로 있는지 1차 확인"],
+      ["결과가 충분히 적다면 ", "연구 주제 후보", "로 메모. 위 인접 논문들이 관련 연구(Related Work) 후보로 그대로 활용 가능"],
+    ],
+    en: [
+      ["Skim the titles of the ", "5 representative neighbor papers", " below to grasp which subfields this area sits between."],
+      ["Click 1–2 ", "Scholar search queries", " to verify externally whether papers with the same combination already exist."],
+      ["If results are sparse enough, save it as a ", "research topic candidate", ". The neighbor papers can serve as Related Work directly."],
+    ],
+  },
+  flowSwitchHint: {
+    ko: "헤더의 「연도별 흐름 보기」 탭으로 전환하면 이 후보 주변의 연도별 흐름을 볼 수 있습니다.",
+    en: 'Switch to the "Year-by-year flow" tab in the header to see how the surrounding research evolves over years.',
   },
   candidateHeader: { ko: "공백 후보 #", en: "Whitespace candidate #" },
   selectedCellHeader: { ko: "선택 영역", en: "Selected cell" },

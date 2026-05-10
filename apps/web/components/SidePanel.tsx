@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { ExternalLink, GitBranch, Lightbulb, Search } from "lucide-react";
-import { pickBridgeText, pickCandidateText, translateKeyword } from "@/lib/i18n";
+import { pickBridgeText, pickCandidateText, translateKeyword, ui } from "@/lib/i18n";
 import { useUIStore } from "@/lib/store";
 import type {
   Cell,
@@ -41,7 +41,7 @@ export function SidePanel({ cells, papers, whitespace }: Props) {
   return (
     <aside className="w-[28rem] border-l border-[hsl(var(--border))] bg-[hsl(var(--muted))] overflow-y-auto h-full">
       {!selectedCellId ? (
-        <EmptyState />
+        <EmptyState locale={locale} />
       ) : (
         <div className="p-5 space-y-5">
           <header>
@@ -62,7 +62,9 @@ export function SidePanel({ cells, papers, whitespace }: Props) {
             </h3>
             {cell && (
               <p className="mt-2 text-sm text-[hsl(var(--foreground))]/70">
-                논문 {cell.paper_count}편 (최근 {cell.recent_count}편)
+                {locale === "ko"
+                  ? `논문 ${cell.paper_count}편 (최근 ${cell.recent_count}편)`
+                  : `${cell.paper_count} papers (${cell.recent_count} recent)`}
                 {cell.dominant_category && ` · ${cell.dominant_category}`}
               </p>
             )}
@@ -72,7 +74,9 @@ export function SidePanel({ cells, papers, whitespace }: Props) {
 
           {cell && cell.top_keywords.length > 0 && !candidate && (
             <section>
-              <h4 className="text-sm font-semibold mb-2">대표 키워드</h4>
+              <h4 className="text-sm font-semibold mb-2">
+                {ui.representativeKw[locale]}
+              </h4>
               <div className="flex flex-wrap gap-2">
                 {cell.top_keywords.map((k) => (
                   <span
@@ -89,7 +93,7 @@ export function SidePanel({ cells, papers, whitespace }: Props) {
           {/* 후보 선택 시에는 cell의 잡음성 논문을 숨김 — 후보 요약과 주제 충돌 회피 */}
           {cellPapers.length > 0 && !candidate && (
             <section>
-              <h4 className="text-sm font-semibold mb-2">이 셀의 논문</h4>
+              <h4 className="text-sm font-semibold mb-2">{ui.papersInCell[locale]}</h4>
               <ul className="space-y-2">
                 {cellPapers.map((p) => (
                   <li
@@ -120,28 +124,31 @@ function getCandidateRank(
   return idx >= 0 ? idx + 1 : 0;
 }
 
-function EmptyState() {
+function EmptyState({ locale }: { locale: "ko" | "en" }) {
+  const bullets = ui.emptyBullets[locale];
   return (
     <div className="p-6 space-y-5">
       <div>
-        <h3 className="text-base font-bold mb-2">상세 패널</h3>
+        <h3 className="text-base font-bold mb-2">{ui.emptyHeading[locale]}</h3>
         <p className="text-sm text-[hsl(var(--foreground))]/70 leading-relaxed">
-          지도의 셀을 클릭하거나, 좌측 공백 후보를 선택하면 여기에 정보가 표시됩니다.
+          {ui.emptyBody[locale]}
         </p>
       </div>
       <ul className="text-sm text-[hsl(var(--foreground))]/65 space-y-2.5 leading-relaxed">
-        <li className="flex gap-2">
-          <span className="text-blue-500 font-bold">·</span>
-          <span>셀에 속한 대표 논문 5편</span>
-        </li>
-        <li className="flex gap-2">
-          <span className="text-blue-500 font-bold">·</span>
-          <span>인접 영역의 키워드</span>
-        </li>
-        <li className="flex gap-2">
-          <span className="text-orange-500 font-bold">·</span>
-          <span>공백 후보일 경우: 근거 + 인접 대표 논문 + Scholar 검색 링크</span>
-        </li>
+        {bullets.map((b, i) => (
+          <li key={b} className="flex gap-2">
+            <span
+              className={
+                i === 2
+                  ? "text-orange-500 font-bold"
+                  : "text-blue-500 font-bold"
+              }
+            >
+              ·
+            </span>
+            <span>{b}</span>
+          </li>
+        ))}
       </ul>
     </div>
   );
@@ -161,24 +168,19 @@ function CandidateBlock({
         <Lightbulb className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
         <div className="space-y-2 min-w-0 flex-1">
           <p className="text-sm font-semibold text-orange-600 dark:text-orange-300">
-            그래서 뭘 하면 되나 — 5분 검증 플로우
+            {ui.whatToDoTitle[locale]}
           </p>
           <ol className="text-sm leading-relaxed text-[hsl(var(--foreground))]/85 space-y-1.5 list-decimal pl-4">
-            <li>
-              아래 <b>인접 대표 논문 5편</b>의 제목을 훑어 이 영역이 어떤 분야 사이에
-              위치하는지 빠르게 파악
-            </li>
-            <li>
-              <b>Scholar 검색 쿼리</b> 1–2개를 클릭해 외부 검색에서 같은 조합의
-              논문이 실제로 있는지 1차 확인
-            </li>
-            <li>
-              결과가 충분히 적다면 <b>연구 주제 후보</b>로 메모. 위 인접 논문들이
-              관련 연구(Related Work) 후보로 그대로 활용 가능
-            </li>
+            {ui.whatToDoSteps[locale].map((parts, i) => (
+              <li key={i}>
+                {parts[0]}
+                <b>{parts[1]}</b>
+                {parts[2]}
+              </li>
+            ))}
           </ol>
           <p className="text-xs text-[hsl(var(--foreground))]/55 italic">
-            지도 헤더의 「연구 흐름 보기」로 전환하면 이 후보 주변의 연도별 흐름을 볼 수 있습니다.
+            {ui.flowSwitchHint[locale]}
           </p>
         </div>
       </div>
@@ -192,7 +194,7 @@ function CandidateBlock({
       {candidate.neighbor_keywords.length > 0 && (
         <div>
           <p className="text-sm font-semibold text-[hsl(var(--foreground))]/75 mb-2">
-            주변 키워드 (영문 / 한글 병기)
+            {ui.neighborKw[locale]}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {candidate.neighbor_keywords.map((k) => {
@@ -220,7 +222,7 @@ function CandidateBlock({
       {candidate.nearest_papers.length > 0 && (
         <div>
           <p className="text-sm font-semibold text-[hsl(var(--foreground))]/75 mb-2">
-            인접 영역의 대표 논문
+            {ui.neighborPapers[locale]}
           </p>
           <ul className="space-y-2">
             {candidate.nearest_papers.slice(0, 5).map((p) => (
@@ -236,7 +238,7 @@ function CandidateBlock({
                   className="mt-1.5 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-300 hover:underline"
                 >
                   <Search className="w-3.5 h-3.5" />
-                  Scholar에서 찾기
+                  {ui.scholarFind[locale]}
                   <ExternalLink className="w-3 h-3 opacity-60" />
                 </a>
               </li>
@@ -248,7 +250,7 @@ function CandidateBlock({
       {candidate.suggested_queries.length > 0 && (
         <div>
           <p className="text-sm font-semibold text-[hsl(var(--foreground))]/75 mb-2">
-            이 공백을 직접 확인하는 검색 쿼리
+            {ui.searchQueries[locale]}
           </p>
           <ul className="space-y-1.5">
             {candidate.suggested_queries.map((q) => (
@@ -270,12 +272,14 @@ function CandidateBlock({
       )}
 
       <div className="flex items-center justify-between text-xs text-[hsl(var(--foreground))]/55 pt-3 border-t border-orange-300/25">
-        <span>근거 강도 {candidate.score.toFixed(1)}</span>
+        <span>
+          {ui.evidenceStrength[locale]} {candidate.score.toFixed(1)}
+        </span>
         <span>{candidate.detector}</span>
       </div>
 
       <p className="text-xs text-[hsl(var(--foreground))]/55 italic leading-snug">
-        ※ 수집 데이터 기준 저밀도 후보. 실제 연구 가치는 위 검색 링크로 직접 확인이 필요합니다.
+        {ui.candidateDisclaimer[locale]}
       </p>
     </section>
   );
