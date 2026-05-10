@@ -132,12 +132,14 @@ class AdjacentGapDetector:
             )
             summary = self._build_summary(neighbor_kws)
             rationale = self._build_rationale(cand, neighbor_kws, neighbor_cats)
+            lineage = self._build_lineage(nearest)
             enriched.append({
                 **cand,
                 "detector": "AdjacentGap",
                 "neighbor_keywords": neighbor_kws,
                 "neighbor_categories": neighbor_cats,
-                "nearest_papers": nearest,
+                "nearest_papers": nearest[:5],
+                "lineage": lineage,
                 "summary": summary,
                 "rationale_template": rationale,
             })
@@ -164,12 +166,11 @@ class AdjacentGapDetector:
         neighbor_cells: list[str],
         cells_lookup: dict[str, dict],
         papers_by_cell: dict[str, list[dict]],
-        limit: int = 5,
+        limit: int = 8,
     ) -> list[dict]:
-        """인접 셀에서 대표 논문을 골라 후보를 설명."""
+        """인접 셀에서 대표 논문을 골라 후보를 설명. 연도 정보 포함."""
         if not papers_by_cell:
             return []
-        # 밀도가 가장 높은 이웃 셀부터 순회하며 논문 수집
         ranked_neighbors = sorted(
             neighbor_cells,
             key=lambda nc: cells_lookup.get(nc, {}).get("paper_count", 0) or 0,
@@ -178,34 +179,81 @@ class AdjacentGapDetector:
         result: list[dict] = []
         for nc in ranked_neighbors:
             for paper in papers_by_cell.get(nc, []):
+                year = None
+                sd = paper.get("submitted_date")
+                if sd is not None:
+                    year = getattr(sd, "year", None)
                 result.append({
                     "id": paper["arxiv_id"],
                     "title": paper["title"],
                     "neighbor_cell": nc,
+                    "year": year,
                 })
                 if len(result) >= limit:
                     return result
         return result
 
     @staticmethod
-    def _build_summary(neighbor_keywords: list[str]) -> str:
-        """후보를 연구자 언어로 요약하는 '기회 문장' (UI 카드의 title 위치).
+    def _build_lineage(nearest_papers: list[dict]) -> dict:
+        """근사 계보(approximate lineage) — citation 없이 연도+밀도 기반.
 
-        키워드 조합 표기가 아닌 자연 문장 — '한눈에 연구 기회로 읽히게'.
+        - foundations: 가장 오래된 2편 (이 영역의 기반 연구)
+        - active: 최근 2년 이내 활발한 인접 연구 2편
+        - bridge_text: 두 흐름 사이의 빈 영역 설명
+        """
+        if not nearest_papers:
+            return {"foundations": [], "active": [], "bridge_text": ""}
+        with_year = [p for p in nearest_papers if p.get("year") is not None]
+        if not with_year:
+            return {
+                "foundations": [],
+                "active": nearest_papers[:3],
+                "bridge_text": "이 후보 주변의 연구 흐름이 아직 충분히 잡히지 않았습니다.",
+            }
+        sorted_by_year = sorted(with_year, key=lambda p: p["year"])
+        foundations = sorted_by_year[:2]
+        active = sorted(with_year, key=lambda p: -p["year"])[:3]
+        # 활발 연구가 기반과 시간상 격차가 있을 때만 bridge 메시지 강조
+        years = [p["year"] for p in with_year]
+        gap_years = max(years) - min(years) if years else 0
+        if gap_years >= 3:
+            bridge_text = (
+                f"기반 연구({min(years)})와 최근 활발 연구({max(years)}) 사이 "
+                f"{gap_years}년의 흐름에서, 이 조합을 직접 잇는 논문이 적습니다."
+            )
+        else:
+            bridge_text = (
+                "비슷한 시기의 인접 연구들 사이에서 이 조합은 직접 다뤄지지 않았습니다."
+            )
+        return {
+            "foundations": foundations,
+            "active": active,
+            "bridge_text": bridge_text,
+        }
+
+    @staticmethod
+    def _build_summary(neighbor_keywords: list[str]) -> str:
+        """후보를 연구자 언어로 요약하는 '기회 문장'.
+
+        영어 키워드를 따옴표로 감싸 명사구로 처리하고, 한국어 조사는 따옴표 뒤
+        명사 연결어("영역", "사이")에만 붙여 어색함을 회피.
         """
         if not neighbor_keywords:
             return "주변 분야 대비 직접 연구가 적은 영역"
         kws = neighbor_keywords[:3]
         primary = kws[0]
         if len(kws) == 1:
-            return f"{primary} 주변은 활발하지만, 인접 조합의 직접 논문은 드뭅니다"
+            return f'"{primary}" 영역 주변은 활발하지만, 같은 영역의 직접 연구는 드뭅니다'
         secondary = kws[1]
         if len(kws) == 2:
-            return f"{primary}은 활발하지만, {secondary}와의 직접 결합 연구는 드뭅니다"
+            return (
+                f'"{primary}" 영역은 활발한 반면, '
+                f'"{secondary}" 와 결합한 직접 연구는 드뭅니다'
+            )
         third = kws[2]
         return (
-            f"{primary}은 활발하지만, {secondary} · {third}로 이어지는 "
-            f"직접 결합 연구는 드뭅니다"
+            f'"{primary}", "{secondary}", "{third}" 사이를 직접 잇는 '
+            f'연구는 드뭅니다'
         )
 
     def _generate_candidate_cells(self, cells_df: pl.DataFrame) -> list[str]:
@@ -267,16 +315,22 @@ class AdjacentGapDetector:
         """근거 템플릿 — 연구자 언어 + 수치 근거 (UX 원칙: 단정 금지)."""
         kws = neighbor_keywords[:3]
         if len(kws) >= 2:
-            kw_phrase = f'"{kws[0]}", "{kws[1]}"' + (f', "{kws[2]}"' if len(kws) >= 3 else "")
-            topic_clause = f"주변에는 {kw_phrase} 관련 논문군이 있지만, 이 조합의 직접 논문은 적습니다."
+            kw_phrase = ", ".join(f'"{k}"' for k in kws)
+            topic_clause = (
+                f"주변에는 {kw_phrase} 관련 논문군이 있지만, "
+                f"이 조합을 직접 다루는 논문은 적습니다."
+            )
         elif kws:
-            topic_clause = f'주변에는 "{kws[0]}" 관련 논문이 있지만, 같은 영역에 직접 논문은 적습니다.'
+            topic_clause = (
+                f'주변에는 "{kws[0]}" 관련 논문이 있지만, '
+                f"같은 영역의 직접 논문은 적습니다."
+            )
         else:
             topic_clause = "주변 영역에 비해 직접 논문이 적은 위치입니다."
         cats = " · ".join(neighbor_cats[:2]) if neighbor_cats else None
         cat_clause = f" 주변 카테고리: {cats}." if cats else ""
         density_clause = (
-            f"수집 데이터 기준 이 셀 {cand['own_count']}편 vs. "
+            f"수집 데이터 기준 이 셀 {cand['own_count']}편, "
             f"인접 셀 평균 {cand['neighbor_density']:.1f}편."
         )
         return f"{topic_clause}{cat_clause} {density_clause}"
@@ -297,7 +351,17 @@ class AdjacentGapDetector:
                     "id": pl.Utf8,
                     "title": pl.Utf8,
                     "neighbor_cell": pl.Utf8,
+                    "year": pl.Int64,
                 })),
+                "lineage": pl.Struct({
+                    "foundations": pl.List(pl.Struct({
+                        "id": pl.Utf8, "title": pl.Utf8, "year": pl.Int64,
+                    })),
+                    "active": pl.List(pl.Struct({
+                        "id": pl.Utf8, "title": pl.Utf8, "year": pl.Int64,
+                    })),
+                    "bridge_text": pl.Utf8,
+                }),
                 "summary": pl.Utf8,
                 "rationale_template": pl.Utf8,
             }

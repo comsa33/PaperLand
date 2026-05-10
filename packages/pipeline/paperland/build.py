@@ -103,6 +103,9 @@ def build_artifacts(
     ws_payload = []
     for row in whitespace_top.to_dicts():
         neighbor_kws = row.get("neighbor_keywords") or []
+        lineage = row.get("lineage") or {
+            "foundations": [], "active": [], "bridge_text": ""
+        }
         ws_payload.append({
             "cell_id": row["cell_id"],
             "summary": row.get("summary") or "",
@@ -112,6 +115,7 @@ def build_artifacts(
             "neighbor_keywords": neighbor_kws,
             "neighbor_categories": row.get("neighbor_categories") or [],
             "nearest_papers": row.get("nearest_papers") or [],
+            "lineage": lineage,
             "own_count": int(row["own_count"]),
             "neighbor_density": float(row["neighbor_density"]),
             "suggested_queries": _build_suggested_queries(neighbor_kws),

@@ -40,6 +40,19 @@ export interface NearestPaper {
   id: string;
   title: string;
   neighbor_cell: string;
+  year?: number | null;
+}
+
+export interface LineagePaper {
+  id: string;
+  title: string;
+  year?: number | null;
+}
+
+export interface Lineage {
+  foundations: LineagePaper[];
+  active: LineagePaper[];
+  bridge_text: string;
 }
 
 export interface WhitespaceCandidate {
@@ -51,6 +64,7 @@ export interface WhitespaceCandidate {
   neighbor_keywords: string[];
   neighbor_categories: string[];
   nearest_papers: NearestPaper[];
+  lineage?: Lineage;
   own_count: number;
   neighbor_density: number;
   suggested_queries: string[];

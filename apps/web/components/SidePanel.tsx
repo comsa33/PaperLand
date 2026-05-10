@@ -1,9 +1,15 @@
 "use client";
 
 import { useMemo } from "react";
-import { ExternalLink, Lightbulb, Search } from "lucide-react";
+import { ExternalLink, GitBranch, Lightbulb, Search } from "lucide-react";
+import { translateKeyword } from "@/lib/i18n";
 import { useUIStore } from "@/lib/store";
-import type { Cell, PaperPoint, WhitespaceCandidate } from "@/lib/types";
+import type {
+  Cell,
+  Lineage,
+  PaperPoint,
+  WhitespaceCandidate,
+} from "@/lib/types";
 
 interface Props {
   cells: Cell[];
@@ -159,20 +165,30 @@ function CandidateBlock({ candidate }: { candidate: WhitespaceCandidate }) {
       {candidate.neighbor_keywords.length > 0 && (
         <div>
           <p className="text-sm font-semibold text-[hsl(var(--foreground))]/75 mb-2">
-            주변 키워드
+            주변 키워드 (영문 / 한글 병기)
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {candidate.neighbor_keywords.map((k) => (
-              <span
-                key={k}
-                className="text-sm px-2.5 py-1 rounded-full border border-orange-300/40 bg-[hsl(var(--background))]"
-              >
-                {k}
-              </span>
-            ))}
+            {candidate.neighbor_keywords.map((k) => {
+              const ko = translateKeyword(k);
+              return (
+                <span
+                  key={k}
+                  className="text-sm px-2.5 py-1 rounded-full border border-orange-300/40 bg-[hsl(var(--background))]"
+                >
+                  <span className="font-medium">{k}</span>
+                  {ko && (
+                    <span className="ml-1.5 text-[hsl(var(--foreground))]/55">
+                      / {ko}
+                    </span>
+                  )}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
+
+      {candidate.lineage && <LineageBlock lineage={candidate.lineage} />}
 
       {candidate.nearest_papers.length > 0 && (
         <div>
@@ -235,5 +251,69 @@ function CandidateBlock({ candidate }: { candidate: WhitespaceCandidate }) {
         ※ 수집 데이터 기준 저밀도 후보. 실제 연구 가치는 위 검색 링크로 직접 확인이 필요합니다.
       </p>
     </section>
+  );
+}
+
+function LineageBlock({ lineage }: { lineage: Lineage }) {
+  const hasFoundations = lineage.foundations?.length > 0;
+  const hasActive = lineage.active?.length > 0;
+  if (!hasFoundations && !hasActive) return null;
+  return (
+    <div className="rounded-md border border-blue-300/30 bg-blue-50/40 dark:bg-blue-950/25 p-3 space-y-3">
+      <div className="flex items-center gap-2">
+        <GitBranch className="w-4 h-4 text-blue-500" />
+        <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+          근사 계보 (year + 인접도 기반)
+        </p>
+      </div>
+      {hasFoundations && (
+        <div>
+          <p className="text-xs font-semibold text-[hsl(var(--foreground))]/65 mb-1">
+            기반 연구
+          </p>
+          <ul className="space-y-1">
+            {lineage.foundations.map((p) => (
+              <li
+                key={p.id}
+                className="text-sm leading-snug flex gap-2 items-baseline"
+              >
+                <span className="font-mono text-xs text-blue-500/80 shrink-0">
+                  {p.year ?? "—"}
+                </span>
+                <span>{p.title}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {lineage.bridge_text && (
+        <div className="px-3 py-2 rounded bg-orange-100/50 dark:bg-orange-950/30 text-sm text-orange-700 dark:text-orange-200 leading-relaxed">
+          ↓ {lineage.bridge_text} ↓
+        </div>
+      )}
+      {hasActive && (
+        <div>
+          <p className="text-xs font-semibold text-[hsl(var(--foreground))]/65 mb-1">
+            최근 활발한 인접 연구
+          </p>
+          <ul className="space-y-1">
+            {lineage.active.map((p) => (
+              <li
+                key={p.id}
+                className="text-sm leading-snug flex gap-2 items-baseline"
+              >
+                <span className="font-mono text-xs text-blue-500/80 shrink-0">
+                  {p.year ?? "—"}
+                </span>
+                <span>{p.title}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <p className="text-xs text-[hsl(var(--foreground))]/55 italic">
+        ※ citation 기반 진짜 계보가 아니라, 같은 영역의 연도+인접도 기반 근사 계보입니다.
+      </p>
+    </div>
   );
 }

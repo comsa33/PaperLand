@@ -115,10 +115,10 @@ def generate_fixtures(
     # 인공적으로 일부 셀을 비워서 AdjacentGap 후보 생성
     cells_df = _inject_synthetic_gaps(cells_df, rng)
 
-    # 공백 후보 탐지 — 인접 대표 논문 추출용 papers_with_coords 전달
-    papers_with_coords = papers_df.select(["arxiv_id", "title"]).join(
-        coords_df, on="arxiv_id", how="inner"
-    )
+    # 공백 후보 탐지 — 인접 대표 논문 + 계보 산출용 (year 포함)
+    papers_with_coords = papers_df.select(
+        ["arxiv_id", "title", "submitted_date"]
+    ).join(coords_df, on="arxiv_id", how="inner")
     detector = AdjacentGapDetector()
     whitespace = detector.detect(
         cells_df=cells_df,

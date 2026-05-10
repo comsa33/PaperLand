@@ -65,7 +65,7 @@ make web`}
         <div className="flex items-baseline gap-3 min-w-0">
           <h1 className="text-base font-bold tracking-tight">PaperLand</h1>
           <p className="text-sm text-[hsl(var(--foreground))]/65 truncate hidden md:block">
-            연구 지형도 + 공백 후보 탐지기
+            arXiv cs.CL 연구 지형도 — 공백 후보 탐지기
           </p>
         </div>
         {isFixture && (
