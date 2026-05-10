@@ -294,8 +294,18 @@ function CandidateBlock({
   onOpenFlow: () => void;
 }) {
   const rationale = pickCandidateText(candidate, locale, "rationale");
+  const type = candidate.candidate_type ?? "sparse_bridge";
+  const typeLabel =
+    type === "empty"
+      ? ui.candidateTypeEmpty[locale]
+      : type === "recent_gap"
+        ? ui.candidateTypeRecent[locale]
+        : ui.candidateTypeSparse[locale];
   return (
     <section className="rounded-lg border border-orange-300/50 bg-orange-50/50 dark:bg-orange-950/25 p-4 space-y-4">
+      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-500/15 border border-orange-400/40 text-xs font-bold text-orange-700 dark:text-orange-300">
+        {typeLabel}
+      </div>
       <div className="flex gap-2.5 items-start">
         <Lightbulb className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
         <div className="space-y-2 min-w-0 flex-1">

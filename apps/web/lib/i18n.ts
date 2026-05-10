@@ -185,7 +185,27 @@ const STRINGS = {
   detailFlowTab: { ko: "연도별 흐름 보기", en: "Year-by-year flow" },
   tabCandidates: { ko: "후보", en: "Candidates" },
   tabMap: { ko: "지도", en: "Map" },
-  tabFlow: { ko: "흐름", en: "Flow" },
+  tabFlow: { ko: "공백 근거", en: "Why this gap" },
+  candidateTypeEmpty: {
+    ko: "빈 공백 — 자기 셀에 논문 없음",
+    en: "Empty gap — no paper in this cell",
+  },
+  candidateTypeSparse: {
+    ko: "저밀도 결합 — 주변보다 적음",
+    en: "Underexplored bridge — sparser than neighbors",
+  },
+  candidateTypeRecent: {
+    ko: "최근 공백 — 과거엔 있었지만 최근 활동 적음",
+    en: "Recent gap — quiet in recent years",
+  },
+  whyGapTitle: {
+    ko: "왜 이 후보가 공백처럼 보이나",
+    en: "Why this looks like a gap",
+  },
+  flowAGroup: { ko: "흐름 A", en: "Flow A" },
+  flowBGroup: { ko: "흐름 B", en: "Flow B" },
+  bridgeGap: { ko: "덜 탐색된 결합", en: "Underexplored bridge" },
+  detailsToggle: { ko: "연도별 인접 논문 자세히", en: "Year-by-year details" },
   flowNeedsCandidate: {
     ko: "후보를 먼저 선택하면 흐름을 볼 수 있어요.",
     en: "Pick a candidate first to view the flow.",

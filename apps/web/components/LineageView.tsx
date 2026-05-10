@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { pickBridgeText, pickCandidateText } from "@/lib/i18n";
+import { pickBridgeText, pickCandidateText, ui } from "@/lib/i18n";
 import { useUIStore } from "@/lib/store";
 import type { WhitespaceCandidate } from "@/lib/types";
 
@@ -85,8 +85,107 @@ export function LineageView({ candidates }: Props) {
           onPick={selectCandidate}
           locale={locale}
         />
-        <FlowGraph candidate={candidate} locale={locale} />
+        <EvidenceSummary candidate={candidate} locale={locale} />
+        <details className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
+          <summary className="cursor-pointer px-4 py-2.5 text-sm font-bold text-[hsl(var(--foreground))]/80 hover:bg-[hsl(var(--background))]/50 rounded-lg">
+            {ui.detailsToggle[locale]}
+          </summary>
+          <div className="px-4 pb-4 pt-2">
+            <FlowGraph candidate={candidate} locale={locale} />
+          </div>
+        </details>
       </div>
+    </div>
+  );
+}
+
+function EvidenceSummary({
+  candidate,
+  locale,
+}: {
+  candidate: WhitespaceCandidate;
+  locale: "ko" | "en";
+}) {
+  const labels = pickFlowLabels(candidate);
+  const flowA = labels[0] ?? (locale === "ko" ? "흐름 A" : "Flow A");
+  const flowB = labels[1] ?? (locale === "ko" ? "흐름 B" : "Flow B");
+  const bridge = labels[2] ?? "";
+  const ratio =
+    candidate.neighbor_density > 0
+      ? candidate.own_count / candidate.neighbor_density
+      : null;
+  return (
+    <section className="rounded-lg border border-orange-300/40 bg-orange-50/30 dark:bg-orange-950/15 p-4 space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <FlowChip label={ui.flowAGroup[locale]} text={flowA} tone="blue" />
+        <FlowChip
+          label={ui.bridgeGap[locale]}
+          text={bridge || (locale === "ko" ? "(직접 결합)" : "(direct bridge)")}
+          tone="orange"
+        />
+        <FlowChip label={ui.flowBGroup[locale]} text={flowB} tone="green" />
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono text-[hsl(var(--foreground))]/70 border-t border-orange-300/30 pt-3">
+        <span>
+          {locale === "ko" ? "이 셀" : "self"}{" "}
+          <b className="font-bold text-[hsl(var(--foreground))]">
+            {candidate.own_count}
+          </b>
+        </span>
+        <span>
+          {locale === "ko" ? "이웃 평균" : "neighbor avg"}{" "}
+          <b className="font-bold text-[hsl(var(--foreground))]">
+            {candidate.neighbor_density.toFixed(1)}
+          </b>
+        </span>
+        {ratio !== null && (
+          <span>
+            {locale === "ko" ? "비율" : "ratio"}{" "}
+            <b className="font-bold text-orange-700 dark:text-orange-300">
+              {ratio.toFixed(2)}
+            </b>
+          </span>
+        )}
+        <span>
+          {locale === "ko" ? "인접 논문" : "adjacent papers"}{" "}
+          <b className="font-bold text-[hsl(var(--foreground))]">
+            {candidate.nearest_papers.length}
+          </b>
+        </span>
+      </div>
+    </section>
+  );
+}
+
+function FlowChip({
+  label,
+  text,
+  tone,
+}: {
+  label: string;
+  text: string;
+  tone: "blue" | "green" | "orange";
+}) {
+  const ring =
+    tone === "blue"
+      ? "border-blue-400/50 bg-blue-50/40 dark:bg-blue-950/20"
+      : tone === "green"
+        ? "border-green-400/50 bg-green-50/40 dark:bg-green-950/20"
+        : "border-orange-400 bg-orange-100/60 dark:bg-orange-950/30";
+  const accent =
+    tone === "blue"
+      ? "text-blue-700 dark:text-blue-300"
+      : tone === "green"
+        ? "text-green-700 dark:text-green-300"
+        : "text-orange-700 dark:text-orange-300";
+  return (
+    <div className={`rounded-md border p-3 ${ring}`}>
+      <p className={`text-[11px] uppercase tracking-wider font-bold ${accent}`}>
+        {label}
+      </p>
+      <p className="mt-1 text-sm font-bold leading-snug text-[hsl(var(--foreground))]/90">
+        {text}
+      </p>
     </div>
   );
 }
@@ -104,7 +203,7 @@ function Header({
   return (
     <header className="space-y-2">
       <p className="text-xs uppercase tracking-wider font-bold text-orange-500">
-        {locale === "ko" ? "연구 흐름 보기" : "Research flow"}
+        {ui.whyGapTitle[locale]}
       </p>
       <h2 className="text-xl font-bold leading-snug">{sentence}</h2>
       <p className="text-sm text-[hsl(var(--foreground))]/65 leading-relaxed">

@@ -77,6 +77,7 @@ export interface WhitespaceCandidate {
   own_count: number;
   neighbor_density: number;
   coherence?: number;
+  candidate_type?: "empty" | "sparse_bridge" | "recent_gap";
   suggested_queries: string[];
 }
 

@@ -167,6 +167,7 @@ def build_artifacts(
             "own_count": int(row["own_count"]),
             "neighbor_density": float(row["neighbor_density"]),
             "coherence": float(row.get("coherence") or 0.0),
+            "candidate_type": row.get("candidate_type") or "sparse_bridge",
             "suggested_queries": _build_suggested_queries(neighbor_kws),
         })
     ws_checksum = _write_json(epoch_dir / "whitespace_top10.json", ws_payload)

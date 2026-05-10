@@ -460,6 +460,16 @@ class AdjacentGapDetector:
                 cand, neighbor_kws, neighbor_cats
             )
             lineage = self._build_lineage(nearest)
+            # 후보 타입 — 'empty' (논문 0편), 'sparse_bridge' (있지만 이웃 대비
+            # 얇음), 'recent_gap' (전체 있지만 최근 거의 없음). UI에 다른 라벨/색.
+            cell_lookup_row = cells_lookup.get(cand["cell_id"], {})
+            recent_count = int(cell_lookup_row.get("recent_count") or 0)
+            if cand["own_count"] == 0:
+                candidate_type = "empty"
+            elif cand["own_count"] >= 3 and recent_count == 0:
+                candidate_type = "recent_gap"
+            else:
+                candidate_type = "sparse_bridge"
             enriched.append({
                 **cand,
                 "detector": "AdjacentGap",
@@ -474,6 +484,7 @@ class AdjacentGapDetector:
                 "rationale_ko": rationale_ko,
                 "rationale_en": rationale_en,
                 "coherence": float(avg_coherence),
+                "candidate_type": candidate_type,
             })
 
         return pl.DataFrame(enriched)
@@ -864,5 +875,6 @@ class AdjacentGapDetector:
                 "rationale_ko": pl.Utf8,
                 "rationale_en": pl.Utf8,
                 "coherence": pl.Float64,
+                "candidate_type": pl.Utf8,
             }
         )

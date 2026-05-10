@@ -226,5 +226,10 @@ def _english_stopwords() -> frozenset[str]:
         "open", "source",  # "open source"
         "scale", "scales", "scalable",
         "show", "shows", "shown", "demonstrate", "demonstrates",
+        # 코드/URL/저장소 artifact — 연구 개념이 아니라 인용된 링크 토큰
+        # cs.CV 등에서 'https github'이 #1 후보로 떠 데모 신뢰를 깨던 회귀.
+        "http", "https", "www", "com", "org", "net", "github", "gitlab",
+        "url", "link", "repository", "repo", "code", "anonymous",
+        "available", "supplementary", "github io", "huggingface",
     }
     return frozenset(ENGLISH_STOP_WORDS) | extras
