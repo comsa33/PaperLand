@@ -79,7 +79,8 @@ export function SidePanel({ cells, papers, whitespace }: Props) {
             </section>
           )}
 
-          {cellPapers.length > 0 && (
+          {/* 후보 선택 시에는 cell의 잡음성 논문을 숨김 — 후보 요약과 주제 충돌 회피 */}
+          {cellPapers.length > 0 && !candidate && (
             <section>
               <h4 className="text-sm font-semibold mb-2">이 셀의 논문</h4>
               <ul className="space-y-2">
@@ -196,7 +197,7 @@ function CandidateBlock({ candidate }: { candidate: WhitespaceCandidate }) {
             인접 영역의 대표 논문
           </p>
           <ul className="space-y-2">
-            {candidate.nearest_papers.map((p) => (
+            {candidate.nearest_papers.slice(0, 5).map((p) => (
               <li
                 key={p.id}
                 className="text-sm leading-snug p-3 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"

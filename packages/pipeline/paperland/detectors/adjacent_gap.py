@@ -150,7 +150,7 @@ class AdjacentGapDetector:
                 "detector": "AdjacentGap",
                 "neighbor_keywords": neighbor_kws,
                 "neighbor_categories": neighbor_cats,
-                "nearest_papers": nearest[:5],
+                "nearest_papers": nearest[:12],
                 "lineage": lineage,
                 "summary": summary,
                 "rationale_template": rationale,
@@ -178,9 +178,15 @@ class AdjacentGapDetector:
         neighbor_cells: list[str],
         cells_lookup: dict[str, dict],
         papers_by_cell: dict[str, list[dict]],
-        limit: int = 8,
+        limit: int = 12,
     ) -> list[dict]:
-        """인접 셀에서 대표 논문을 골라 후보를 설명. 연도 정보 포함."""
+        """인접 셀에서 대표 논문을 골라 후보를 설명.
+
+        연도+이웃셀 변별력을 위해 다음 단계로 수집:
+        1) 셀별로 정렬 (밀도 높은 순)
+        2) 각 셀 안에서 연도별로 1편씩 골라 stratified 표본
+        3) limit 까지 채움
+        """
         if not papers_by_cell:
             return []
         ranked_neighbors = sorted(
@@ -188,19 +194,38 @@ class AdjacentGapDetector:
             key=lambda nc: cells_lookup.get(nc, {}).get("paper_count", 0) or 0,
             reverse=True,
         )
+
+        def to_node(paper: dict, nc: str) -> dict:
+            sd = paper.get("submitted_date")
+            year = getattr(sd, "year", None) if sd is not None else None
+            return {
+                "id": paper["arxiv_id"],
+                "title": paper["title"],
+                "neighbor_cell": nc,
+                "year": year,
+            }
+
         result: list[dict] = []
+        # 1차 패스: 각 셀 × 각 연도에서 1편씩 (연도 다양성 확보)
+        for nc in ranked_neighbors:
+            seen_years: set[int] = set()
+            for paper in papers_by_cell.get(nc, []):
+                node = to_node(paper, nc)
+                y = node.get("year")
+                if y is None or y in seen_years:
+                    continue
+                seen_years.add(int(y))
+                result.append(node)
+                if len(result) >= limit:
+                    return result
+        # 2차 패스: 부족하면 셀별 추가 논문 채우기
+        seen_ids = {n["id"] for n in result}
         for nc in ranked_neighbors:
             for paper in papers_by_cell.get(nc, []):
-                year = None
-                sd = paper.get("submitted_date")
-                if sd is not None:
-                    year = getattr(sd, "year", None)
-                result.append({
-                    "id": paper["arxiv_id"],
-                    "title": paper["title"],
-                    "neighbor_cell": nc,
-                    "year": year,
-                })
+                if paper["arxiv_id"] in seen_ids:
+                    continue
+                result.append(to_node(paper, nc))
+                seen_ids.add(paper["arxiv_id"])
                 if len(result) >= limit:
                     return result
         return result

@@ -64,6 +64,7 @@ def fetch_papers(
     page_size: int = PAGE_SIZE,
     delay: float = DEFAULT_DELAY_SECONDS,
     since: date | None = None,
+    year_range: tuple[int, int] | None = None,
 ) -> Iterator[Paper]:
     """arXiv API에서 카테고리별 최신 논문을 yield.
 
@@ -73,17 +74,26 @@ def fetch_papers(
         page_size: 페이지당 결과 수
         delay: API 호출 사이 대기 시간 (초)
         since: 이 날짜 이후 제출된 논문만 (None이면 전부)
+        year_range: (시작 연도, 종료 연도) — submittedDate 범위 지정. since 와 배타.
     """
     fetched = 0
     start = 0
     headers = {"User-Agent": USER_AGENT}
+    if year_range is not None:
+        y_from, y_to = year_range
+        search_query = (
+            f"cat:{category} AND "
+            f"submittedDate:[{y_from}01010000 TO {y_to}12312359]"
+        )
+    else:
+        search_query = f"cat:{category}"
     with httpx.Client(
         timeout=60.0, follow_redirects=True, headers=headers
     ) as client:
         while fetched < max_results:
             wanted = min(page_size, max_results - fetched)
             params = {
-                "search_query": f"cat:{category}",
+                "search_query": search_query,
                 "start": start,
                 "max_results": wanted,
                 "sortBy": "submittedDate",

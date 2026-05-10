@@ -22,7 +22,7 @@ fixtures:
 fetch:
 	cd packages/pipeline && uv run paperland fetch \
 		--out ../../data/raw/arxiv-cs-cl.parquet \
-		--category cs.CL --n 2000 --days 730
+		--category cs.CL --per-year 400 --years 5
 
 real-build:
 	cd packages/pipeline && uv run paperland build \

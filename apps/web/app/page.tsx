@@ -1,7 +1,8 @@
 "use client";
 
-import { Languages } from "lucide-react";
+import { GitBranch, Languages, Map as MapIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { LineageView } from "@/components/LineageView";
 import { Map } from "@/components/Map";
 import { Onboarding } from "@/components/Onboarding";
 import { SidePanel } from "@/components/SidePanel";
@@ -17,6 +18,8 @@ export default function HomePage() {
   const selectCandidate = useUIStore((s) => s.selectCandidate);
   const locale = useUIStore((s) => s.locale);
   const setLocale = useUIStore((s) => s.setLocale);
+  const viewMode = useUIStore((s) => s.viewMode);
+  const setViewMode = useUIStore((s) => s.setViewMode);
   const initialSelectedRef = useRef(false);
 
   useEffect(() => {
@@ -75,16 +78,49 @@ make web`}
             {ui.appSubtitle[locale]}
           </p>
         </div>
+
+        <nav className="flex items-center gap-1 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-0.5">
+          <button
+            type="button"
+            onClick={() => setViewMode("map")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-semibold transition ${
+              viewMode === "map"
+                ? "bg-[hsl(var(--background))] shadow-sm"
+                : "text-[hsl(var(--foreground))]/65 hover:text-[hsl(var(--foreground))]/95"
+            }`}
+            aria-pressed={viewMode === "map"}
+          >
+            <MapIcon className="w-4 h-4" />
+            {locale === "ko" ? "지도 모드" : "Map"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("lineage")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-semibold transition ${
+              viewMode === "lineage"
+                ? "bg-[hsl(var(--background))] shadow-sm"
+                : "text-[hsl(var(--foreground))]/65 hover:text-[hsl(var(--foreground))]/95"
+            }`}
+            aria-pressed={viewMode === "lineage"}
+          >
+            <GitBranch className="w-4 h-4" />
+            {locale === "ko" ? "계보 모드" : "Lineage"}
+          </button>
+        </nav>
         {isFixture && (
           <div className="px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 whitespace-nowrap">
             {ui.fixtureBadge[locale]}
           </div>
         )}
         <div className="flex items-center gap-3">
-          <div className="text-xs text-[hsl(var(--foreground))]/55 font-mono whitespace-nowrap hidden lg:block">
-            epoch {data.manifest.map_epoch} · {data.manifest.paper_count}
-            {" · "}
-            {data.manifest.categories.join(",")}
+          <div
+            className="text-xs text-[hsl(var(--foreground))]/55 font-mono whitespace-nowrap hidden lg:block max-w-[20rem] truncate"
+            title={data.manifest.categories.join(", ")}
+          >
+            epoch {data.manifest.map_epoch} · {data.manifest.paper_count}편 ·{" "}
+            {data.manifest.categories.length === 1
+              ? data.manifest.categories[0]
+              : `cs.CL primary · ${data.manifest.categories.length} cats`}
           </div>
           <button
             type="button"
@@ -103,13 +139,19 @@ make web`}
       <div className="flex-1 flex overflow-hidden">
         <WhitespacePanel candidates={data.whitespace} />
         <div className="flex-1 relative bg-[hsl(var(--background))]">
-          <Map
-            cells={data.cells}
-            papers={data.papers}
-            whitespace={data.whitespace}
-            clusters={data.clusters}
-          />
-          <Onboarding />
+          {viewMode === "map" ? (
+            <>
+              <Map
+                cells={data.cells}
+                papers={data.papers}
+                whitespace={data.whitespace}
+                clusters={data.clusters}
+              />
+              <Onboarding />
+            </>
+          ) : (
+            <LineageView candidates={data.whitespace} />
+          )}
         </div>
         <SidePanel
           cells={data.cells}

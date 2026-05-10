@@ -4,6 +4,7 @@ import { create } from "zustand";
 import type { WhitespaceCandidate } from "./types";
 
 export type Locale = "ko" | "en";
+export type ViewMode = "map" | "lineage";
 
 const LOCALE_KEY = "paperland.locale";
 
@@ -18,10 +19,12 @@ interface UIState {
   selectedCellId: string | null;
   selectedCandidate: WhitespaceCandidate | null;
   locale: Locale;
+  viewMode: ViewMode;
   setWhitespaceMode: (on: boolean) => void;
   selectCell: (id: string | null) => void;
   selectCandidate: (c: WhitespaceCandidate | null) => void;
   setLocale: (l: Locale) => void;
+  setViewMode: (m: ViewMode) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -29,6 +32,7 @@ export const useUIStore = create<UIState>((set) => ({
   selectedCellId: null,
   selectedCandidate: null,
   locale: "ko",
+  viewMode: "map",
   setWhitespaceMode: (on) => set({ whitespaceMode: on }),
   selectCell: (id) => set({ selectedCellId: id, selectedCandidate: null }),
   selectCandidate: (c) =>
@@ -39,6 +43,7 @@ export const useUIStore = create<UIState>((set) => ({
     }
     set({ locale: l });
   },
+  setViewMode: (m) => set({ viewMode: m }),
 }));
 
 export function hydrateLocale() {

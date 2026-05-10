@@ -45,29 +45,54 @@ def fetch(
         help="저장 경로 (Parquet)",
     ),
     category: str = typer.Option("cs.CL", "--category", help="arXiv 카테고리"),
-    max_papers: int = typer.Option(2000, "--n", help="수집 최대 논문 수"),
-    days_back: int = typer.Option(
-        365 * 2, "--days", help="이 일수 이내 제출된 논문만 (0이면 전부)"
+    per_year: int = typer.Option(
+        400, "--per-year", help="연도별 최대 수집 논문 수 (층화 샘플링)"
+    ),
+    years: int = typer.Option(
+        5, "--years", help="최근 몇 년치를 연도별로 균등 수집"
     ),
 ) -> None:
-    """arXiv API에서 카테고리별 최신 논문을 수집해 Parquet으로 저장."""
-    since = (date.today() - timedelta(days=days_back)) if days_back > 0 else None
+    """arXiv API에서 카테고리별 논문을 연도 균등 층화 수집.
+
+    예: --per-year 400 --years 5 → 최근 5년 × 400편 ≈ 2000편 (연도별 균등).
+    `paperland build` 의 연도별 흐름이 의미를 가지려면 균등 분포가 필요함.
+    """
+    today = date.today()
     rprint(
-        f"[bold cyan]arXiv fetch[/] {category} "
-        f"max={max_papers}{f' since={since}' if since else ''}"
+        f"[bold cyan]arXiv stratified fetch[/] {category} "
+        f"× {years}년 × {per_year}/년"
     )
     rows: list[dict] = []
+    seen_ids: set[str] = set()
     with Progress() as progress:
-        task = progress.add_task("[cyan]수집 중", total=max_papers)
-        for paper in fetch_papers(category=category, max_results=max_papers, since=since):
-            rows.append(paper.model_dump())
-            progress.update(task, completed=len(rows))
+        task = progress.add_task("[cyan]수집 중", total=per_year * years)
+        for offset in range(years):
+            year = today.year - offset
+            year_range = (year, year)
+            rprint(f"  [dim]· {year}년 수집[/] (최대 {per_year}편)")
+            for paper in fetch_papers(
+                category=category,
+                max_results=per_year,
+                year_range=year_range,
+            ):
+                if paper.arxiv_id in seen_ids:
+                    continue
+                seen_ids.add(paper.arxiv_id)
+                rows.append(paper.model_dump())
+                progress.update(task, completed=len(rows))
     if not rows:
         rprint("[red]수집된 논문 없음[/]")
         raise typer.Exit(code=1)
     out.parent.mkdir(parents=True, exist_ok=True)
     pl.DataFrame(rows).write_parquet(out)
+    # 연도 분포 요약
+    by_year: dict[int, int] = {}
+    for r in rows:
+        y = r["submitted_date"].year
+        by_year[y] = by_year.get(y, 0) + 1
+    dist = ", ".join(f"{y}: {by_year[y]}" for y in sorted(by_year, reverse=True))
     rprint(f"[green]✓[/] 저장: {out} ({len(rows)}편)")
+    rprint(f"  [dim]연도 분포: {dist}[/]")
 
 
 @app.command()
@@ -96,7 +121,15 @@ def build(
 
     rprint(f"[cyan]논문 로드[/] {papers_path}")
     papers_df = validate_papers(load_papers_from_parquet(papers_path))
-    rprint(f"  → {len(papers_df)}편 통과")
+    rprint(f"  → 검증 통과: {len(papers_df)}편")
+    # primary cs.CL 만 필터 — '카테고리 cs.CL 포함' 논문에 cs.LG/CR/econ 등이 섞이는 것 차단
+    primary_target = "cs.CL"
+    before = len(papers_df)
+    papers_df = papers_df.filter(pl.col("primary_category") == primary_target)
+    rprint(
+        f"  → primary={primary_target} 필터: {len(papers_df)}편 "
+        f"(제외 {before - len(papers_df)})"
+    )
 
     rprint(f"[cyan]임베딩[/] {embedding_model}")
     embeddings, arxiv_ids = embed_papers(papers_df, model_name=embedding_model)
