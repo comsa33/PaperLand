@@ -7,11 +7,18 @@ export type Locale = "ko" | "en";
 export type ViewMode = "list" | "map" | "lineage";
 
 const LOCALE_KEY = "paperland.locale";
+const CATEGORY_KEY = "paperland.category";
+const DEFAULT_CATEGORY = "cs.CL";
 
 function loadLocale(): Locale {
   if (typeof window === "undefined") return "ko";
   const stored = window.localStorage.getItem(LOCALE_KEY);
   return stored === "en" ? "en" : "ko";
+}
+
+function loadCategory(): string {
+  if (typeof window === "undefined") return DEFAULT_CATEGORY;
+  return window.localStorage.getItem(CATEGORY_KEY) || DEFAULT_CATEGORY;
 }
 
 interface UIState {
@@ -20,11 +27,13 @@ interface UIState {
   selectedCandidate: WhitespaceCandidate | null;
   locale: Locale;
   viewMode: ViewMode;
+  category: string;
   setWhitespaceMode: (on: boolean) => void;
   selectCell: (id: string | null) => void;
   selectCandidate: (c: WhitespaceCandidate | null) => void;
   setLocale: (l: Locale) => void;
   setViewMode: (m: ViewMode) => void;
+  setCategory: (c: string) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -33,6 +42,7 @@ export const useUIStore = create<UIState>((set) => ({
   selectedCandidate: null,
   locale: "ko",
   viewMode: "list",
+  category: DEFAULT_CATEGORY,
   setWhitespaceMode: (on) => set({ whitespaceMode: on }),
   selectCell: (id) => set({ selectedCellId: id, selectedCandidate: null }),
   selectCandidate: (c) =>
@@ -44,8 +54,20 @@ export const useUIStore = create<UIState>((set) => ({
     set({ locale: l });
   },
   setViewMode: (m) => set({ viewMode: m }),
+  setCategory: (c) => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(CATEGORY_KEY, c);
+    }
+    set({
+      category: c,
+      // 카테고리 바뀌면 선택 상태 초기화
+      selectedCandidate: null,
+      selectedCellId: null,
+      viewMode: "list",
+    });
+  },
 }));
 
 export function hydrateLocale() {
-  useUIStore.setState({ locale: loadLocale() });
+  useUIStore.setState({ locale: loadLocale(), category: loadCategory() });
 }

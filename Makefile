@@ -1,9 +1,16 @@
 .PHONY: help install fixtures fetch real-build web dev test lint clean
 
 # 다른 분야로 바꾸려면: make fetch CATEGORY=cs.LG  (cs.AI, cs.CV, stat.ML 등)
-# 같은 변수로 real-build 의 parquet 경로도 자동 매핑됩니다.
+# 같은 변수로 real-build 의 parquet 경로 + 출력 디렉토리도 자동 매핑됩니다.
 CATEGORY ?= cs.CL
-PARQUET = data/raw/arxiv-$(subst .,-,$(CATEGORY)).parquet
+SLUG = $(shell echo $(CATEGORY) | tr 'A-Z.' 'a-z-')
+PARQUET = data/raw/arxiv-$(SLUG).parquet
+# cs.CL은 호환을 위해 기존 root 경로 유지, 그 외 카테고리는 서브 디렉토리.
+ifeq ($(CATEGORY),cs.CL)
+OUTDIR = apps/web/public/data
+else
+OUTDIR = apps/web/public/data/$(SLUG)
+endif
 
 help:
 	@echo "PaperLand 개발 명령"
@@ -33,7 +40,7 @@ fetch:
 real-build:
 	cd packages/pipeline && uv run paperland build \
 		--papers ../../$(PARQUET) \
-		--out ../../apps/web/public/data
+		--out ../../$(OUTDIR)
 
 web:
 	cd apps/web && npm run dev

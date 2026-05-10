@@ -207,13 +207,15 @@ def _assign_unique_labels(cluster_keywords: dict[int, list[str]]) -> dict[int, s
 
 
 def _build_suggested_queries(keywords: list[str]) -> list[str]:
-    """인접 키워드 기반 검색 쿼리 — 단어 단위 중복 제거 + 약한 라벨 회피.
+    """인접 키워드 기반 검색 쿼리 — phrase는 그대로 보존, 키워드 자체만 중복 제거.
 
-    예) ['large language', 'language llms', 'knowledge graphs']
-        → 'large language knowledge graphs', 'large language knowledge graphs survey',
-           'large language knowledge graphs question answering' (없으면 생략)
-    같은 어휘가 두 키워드에 걸쳐 반복되어 'large language language llms' 처럼 어색한
-    쿼리가 나오지 않도록 word-level dedup 적용.
+    예) ['fine tuning', 'prompt tuning', 'speculative decoding']
+        → 'fine tuning prompt tuning',
+           'fine tuning prompt tuning survey',
+           'fine tuning prompt tuning speculative decoding'
+
+    이전 word-level dedup이 'fine tuning prompt tuning' → 'fine tuning prompt'로
+    줄여 phrase가 깨지던 문제 수정.
     """
     if not keywords:
         return []
@@ -232,23 +234,12 @@ def _build_suggested_queries(keywords: list[str]) -> list[str]:
     pruned = [k for k in keywords if k.lower().strip() not in weak]
     base = pruned[:3] if pruned else keywords[:3]
 
-    def merge_words(words_seq: list[str]) -> str:
-        seen: dict[str, None] = {}
-        for w in words_seq:
-            lw = w.lower()
-            if lw not in seen:
-                seen[lw] = None
-        return " ".join(seen.keys())
-
     queries: list[str] = []
     if len(base) >= 2:
-        words = (base[0] + " " + base[1]).split()
-        merged = merge_words(words)
-        queries.append(merged)
-        queries.append(f"{merged} survey")
+        queries.append(f"{base[0]} {base[1]}")
+        queries.append(f"{base[0]} {base[1]} survey")
     if len(base) >= 3:
-        words = " ".join(base[:3]).split()
-        queries.append(merge_words(words))
+        queries.append(f"{base[0]} {base[1]} {base[2]}")
     # query-level dedup
     out: list[str] = []
     seen_q: set[str] = set()

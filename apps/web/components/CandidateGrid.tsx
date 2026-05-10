@@ -221,45 +221,60 @@ function NearbyPapers({
   papers: PaperPoint[];
   locale: "ko" | "en";
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? papers : papers.slice(0, 5);
+  const hiddenCount = Math.max(0, papers.length - 5);
   return (
-    <section className="rounded-xl border border-blue-300/40 bg-blue-50/30 dark:bg-blue-950/20 p-4 space-y-3">
-      <div className="space-y-1">
-        <p className="text-sm font-bold text-blue-700 dark:text-blue-300">
+    <details
+      open={expanded}
+      onToggle={(e) => setExpanded((e.target as HTMLDetailsElement).open)}
+      className="rounded-lg border border-blue-300/40 bg-blue-50/25 dark:bg-blue-950/15"
+    >
+      <summary className="flex items-center justify-between gap-3 px-4 py-2.5 cursor-pointer text-sm font-bold text-blue-700 dark:text-blue-300 hover:bg-blue-50/40 dark:hover:bg-blue-950/30 rounded-lg">
+        <span>
           {(ui.nearbyPapersTitle[locale] as (n: number) => string)(papers.length)}
-        </p>
+        </span>
+        <span className="text-xs font-normal text-[hsl(var(--foreground))]/55">
+          {expanded
+            ? locale === "ko"
+              ? "접기"
+              : "Collapse"
+            : hiddenCount > 0
+              ? locale === "ko"
+                ? `상위 5편 표시 · 더 보기 (+${hiddenCount})`
+                : `Top 5 · show more (+${hiddenCount})`
+              : locale === "ko"
+                ? "펼치기"
+                : "Expand"}
+        </span>
+      </summary>
+      <div className="px-4 pb-3 pt-1 space-y-2">
         <p className="text-xs text-[hsl(var(--foreground))]/55 leading-relaxed">
           {ui.nearbyPapersHint[locale]}
         </p>
-      </div>
-      <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[280px] overflow-y-auto pr-1">
-        {papers.slice(0, 12).map((p) => (
-          <li
-            key={p.id}
-            className="text-sm leading-snug p-2.5 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
-          >
-            <a
-              href={`https://scholar.google.com/scholar?q=${encodeURIComponent(p.title)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="block hover:text-blue-600 dark:hover:text-blue-300 transition"
+        <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {visible.map((p) => (
+            <li
+              key={p.id}
+              className="text-sm leading-snug p-2.5 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
             >
-              <p className="line-clamp-2 font-medium">{p.title}</p>
-              <p className="mt-1 text-xs text-[hsl(var(--foreground))]/55 font-mono">
-                {p.id}
-                {p.year ? ` · ${p.year}` : ""}
-              </p>
-            </a>
-          </li>
-        ))}
-      </ul>
-      {papers.length > 12 && (
-        <p className="text-xs text-[hsl(var(--foreground))]/55">
-          {locale === "ko"
-            ? `… 외 ${papers.length - 12}편`
-            : `… and ${papers.length - 12} more`}
-        </p>
-      )}
-    </section>
+              <a
+                href={`https://scholar.google.com/scholar?q=${encodeURIComponent(p.title)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="block hover:text-blue-600 dark:hover:text-blue-300 transition"
+              >
+                <p className="line-clamp-2 font-medium">{p.title}</p>
+                <p className="mt-1 text-xs text-[hsl(var(--foreground))]/55 font-mono">
+                  {p.id}
+                  {p.year ? ` · ${p.year}` : ""}
+                </p>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </details>
   );
 }
 
