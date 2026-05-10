@@ -118,15 +118,10 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
         const b = Math.floor(255 - intensity * 30);
         return [r, g, b, 180];
       },
-      getLineColor: (d) => {
-        const isSelected = selectedCellId === d.cell_id;
-        const isWS = whitespaceCellIds.has(d.cell_id);
-        if (isSelected) return [255, 255, 255, 255]; // 선택 = 흰색 outline (다른 시그널과 분리)
-        if (isWS) return [255, 180, 50, 230];
-        return [180, 200, 230, 70];
-      },
-      getLineWidth: (d) => (selectedCellId === d.cell_id ? 3 : 1),
-      lineWidthUnits: "pixels",
+      getLineColor: (d) =>
+        whitespaceCellIds.has(d.cell_id)
+          ? [255, 180, 50, 230]
+          : [180, 200, 230, 70],
       onClick: (info) => {
         const cell = info.object as Cell | undefined;
         selectCell(cell?.cell_id ?? null);
@@ -172,7 +167,38 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
       getBorderWidth: 1,
     });
 
-    return [cellLayer, pointsLayer, labelLayer];
+    // 선택 셀 시각화 — fill을 건드리지 않고 별도 레이어로 cyan ring + 중심 점.
+    const selectedCell = selectedCellId
+      ? cells.find((c) => c.cell_id === selectedCellId)
+      : undefined;
+
+    const selectedRingLayer = new H3HexagonLayer<{ cell_id: string }>({
+      id: "selected-ring",
+      data: selectedCell ? [{ cell_id: selectedCell.cell_id }] : [],
+      getHexagon: (d) => d.cell_id,
+      filled: false,
+      stroked: true,
+      getLineColor: [56, 189, 248, 255], // cyan-400
+      lineWidthMinPixels: 5,
+      pickable: false,
+    });
+
+    const selectedPinLayer = new ScatterplotLayer<Cell>({
+      id: "selected-pin",
+      data: selectedCell ? [selectedCell] : [],
+      getPosition: (d) => [d.centroid_x, d.centroid_y],
+      stroked: true,
+      filled: true,
+      getFillColor: [255, 255, 255, 240],
+      getLineColor: [14, 165, 233, 255], // sky-500
+      lineWidthMinPixels: 2,
+      radiusMinPixels: 5,
+      radiusMaxPixels: 7,
+      getRadius: 0,
+      pickable: false,
+    });
+
+    return [cellLayer, pointsLayer, selectedRingLayer, selectedPinLayer, labelLayer];
   }, [
     cells,
     papers,

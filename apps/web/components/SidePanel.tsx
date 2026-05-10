@@ -21,6 +21,7 @@ export function SidePanel({ cells, papers, whitespace }: Props) {
   const selectedCellId = useUIStore((s) => s.selectedCellId);
   const selectedCandidate = useUIStore((s) => s.selectedCandidate);
   const locale = useUIStore((s) => s.locale);
+  const setViewMode = useUIStore((s) => s.setViewMode);
 
   const cell = useMemo(
     () => cells.find((c) => c.cell_id === selectedCellId) ?? null,
@@ -74,7 +75,13 @@ export function SidePanel({ cells, papers, whitespace }: Props) {
 
           {cell && <SparsenessBlock cell={cell} isCandidate={!!candidate} locale={locale} />}
 
-          {candidate && <CandidateBlock candidate={candidate} locale={locale} />}
+          {candidate && (
+            <CandidateBlock
+              candidate={candidate}
+              locale={locale}
+              onOpenFlow={() => setViewMode("lineage")}
+            />
+          )}
 
           {cell && cell.top_keywords.length > 0 && !candidate && (
             <section>
@@ -280,9 +287,11 @@ function Metric({
 function CandidateBlock({
   candidate,
   locale,
+  onOpenFlow,
 }: {
   candidate: WhitespaceCandidate;
   locale: "ko" | "en";
+  onOpenFlow: () => void;
 }) {
   const rationale = pickCandidateText(candidate, locale, "rationale");
   return (
@@ -302,9 +311,14 @@ function CandidateBlock({
               </li>
             ))}
           </ol>
-          <p className="text-xs text-[hsl(var(--foreground))]/55 italic">
-            {ui.flowSwitchHint[locale]}
-          </p>
+          <button
+            type="button"
+            onClick={onOpenFlow}
+            className="mt-1 inline-flex items-center gap-1.5 text-xs font-bold text-orange-700 dark:text-orange-300 hover:underline"
+          >
+            <GitBranch className="w-3.5 h-3.5" />
+            {ui.openFlow[locale]}
+          </button>
         </div>
       </div>
 

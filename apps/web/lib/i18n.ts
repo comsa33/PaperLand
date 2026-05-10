@@ -291,9 +291,14 @@ const STRINGS = {
     ],
   },
   flowSwitchHint: {
-    ko: "헤더의 「연도별 흐름 보기」 탭으로 전환하면 이 후보 주변의 연도별 흐름을 볼 수 있습니다.",
-    en: 'Switch to the "Year-by-year flow" tab in the header to see how the surrounding research evolves over years.',
+    ko: "아래 버튼으로 이 후보의 연도별 인접 연구 흐름을 볼 수 있습니다.",
+    en: "Use the button below to view this candidate's year-by-year adjacent flow.",
   },
+  openFlow: {
+    ko: "이 후보의 연도별 흐름 보기 →",
+    en: "View this candidate's year-by-year flow →",
+  },
+  backToMap: { ko: "← 지도로 돌아가기", en: "← Back to the map" },
   candidateHeader: { ko: "공백 후보 #", en: "Whitespace candidate #" },
   selectedCellHeader: { ko: "선택 영역", en: "Selected cell" },
   papersInCell: {

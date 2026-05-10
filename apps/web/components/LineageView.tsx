@@ -46,6 +46,7 @@ export function LineageView({ candidates }: Props) {
   const selectedCandidate = useUIStore((s) => s.selectedCandidate);
   const selectCandidate = useUIStore((s) => s.selectCandidate);
   const locale = useUIStore((s) => s.locale);
+  const setViewMode = useUIStore((s) => s.setViewMode);
   const candidate =
     selectedCandidate ?? (candidates.length > 0 ? candidates[0] : null);
 
@@ -64,6 +65,13 @@ export function LineageView({ candidates }: Props) {
   return (
     <div className="absolute inset-0 overflow-y-auto bg-[hsl(var(--background))]">
       <div className="max-w-6xl mx-auto px-6 py-5 space-y-4">
+        <button
+          type="button"
+          onClick={() => setViewMode("map")}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-semibold border border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))] transition"
+        >
+          {locale === "ko" ? "← 지도로 돌아가기" : "← Back to the map"}
+        </button>
         <Header candidate={candidate} locale={locale} />
         <CandidateTabs
           candidates={candidates}
