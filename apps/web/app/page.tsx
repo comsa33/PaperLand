@@ -130,14 +130,16 @@ make web`}
 
         <div className="flex items-center gap-3">
           <div
-            className="text-xs text-[hsl(var(--foreground))]/55 font-mono whitespace-nowrap hidden lg:block max-w-[20rem] truncate"
-            title={data.manifest.categories.join(", ")}
+            className="text-xs text-[hsl(var(--foreground))]/55 whitespace-nowrap hidden lg:flex items-center gap-1.5 max-w-[24rem] truncate"
+            title={ui.datasetSwitchHint[locale]}
           >
-            epoch {data.manifest.map_epoch} · {data.manifest.paper_count}{" "}
-            {locale === "ko" ? "편" : "papers"} ·{" "}
-            {data.manifest.categories.length === 1
-              ? data.manifest.categories[0]
-              : `cs.CL primary · ${data.manifest.categories.length} cats`}
+            <span className="font-mono">
+              epoch {data.manifest.map_epoch} · {data.manifest.paper_count}{" "}
+              {locale === "ko" ? "편" : "papers"}
+            </span>
+            <span className="px-1.5 py-0.5 rounded bg-[hsl(var(--muted))] border border-[hsl(var(--border))] font-mono font-semibold text-[hsl(var(--foreground))]/70">
+              {ui.datasetLabel[locale]}: {data.manifest.categories[0] ?? "—"}
+            </span>
           </div>
           <button
             type="button"
@@ -155,7 +157,7 @@ make web`}
 
       <div className="flex-1 flex overflow-hidden relative">
         {isList ? (
-          <CandidateGrid candidates={data.whitespace} />
+          <CandidateGrid candidates={data.whitespace} papers={data.papers} />
         ) : viewMode === "map" ? (
           <>
             <div className="flex-1 relative bg-[hsl(var(--background))]">

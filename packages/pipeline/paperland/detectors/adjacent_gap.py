@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 import h3
@@ -417,8 +418,19 @@ class AdjacentGapDetector:
                 cand["neighbor_cells"], cells_lookup
             )
             nearest = self._collect_nearest_papers(
-                cand["cell_id"], cand["neighbor_cells"], cells_lookup, papers_by_cell
+                cand["cell_id"],
+                cand["neighbor_cells"],
+                neighbor_kws,
+                cells_lookup,
+                papers_by_cell,
             )
+            # coherence 평균 — 키워드와 인접 논문 제목의 의미 정합도
+            coh_vals = [int(p.get("coherence") or 0) for p in nearest[:5]]
+            avg_coherence = (sum(coh_vals) / len(coh_vals)) if coh_vals else 0.0
+            # 정합도가 너무 낮으면 후보 자체를 신뢰할 수 없으므로 제외
+            # (대표 논문 5편 평균이 1단어도 안 겹치는 후보는 키워드 노이즈일 가능성 큼)
+            if nearest and avg_coherence < 0.6:
+                continue
             summary_ko, summary_en = self._build_summary_pair(neighbor_kws)
             rationale_ko, rationale_en = self._build_rationale_pair(
                 cand, neighbor_kws, neighbor_cats
@@ -437,6 +449,7 @@ class AdjacentGapDetector:
                 "rationale_template": rationale_ko,
                 "rationale_ko": rationale_ko,
                 "rationale_en": rationale_en,
+                "coherence": float(avg_coherence),
             })
 
         return pl.DataFrame(enriched)
@@ -456,61 +469,97 @@ class AdjacentGapDetector:
         return out
 
     @staticmethod
+    def _coherence(title: str, kw_tokens: set[str]) -> int:
+        """후보 키워드 토큰과 논문 제목 단어의 교집합 크기."""
+        if not title:
+            return 0
+        title_tokens = set(re.findall(r"\b[a-z]{3,}\b", title.lower()))
+        return len(title_tokens & kw_tokens)
+
+    @staticmethod
+    def _kw_token_set(neighbor_keywords: list[str]) -> set[str]:
+        out: set[str] = set()
+        for kw in neighbor_keywords:
+            for t in kw.lower().split():
+                if len(t) >= 3:
+                    out.add(t)
+        return out
+
+    @classmethod
     def _collect_nearest_papers(
+        cls,
         cell_id: str,
         neighbor_cells: list[str],
+        neighbor_keywords: list[str],
         cells_lookup: dict[str, dict],
         papers_by_cell: dict[str, list[dict]],
         limit: int = 12,
     ) -> list[dict]:
         """인접 셀에서 대표 논문을 골라 후보를 설명.
 
-        연도+이웃셀 변별력을 위해 다음 단계로 수집:
-        1) 셀별로 정렬 (밀도 높은 순)
-        2) 각 셀 안에서 연도별로 1편씩 골라 stratified 표본
-        3) limit 까지 채움
+        수집 → coherence(키워드와의 제목 토큰 겹침) 우선 + 연도/셀 다양성 결합.
         """
         if not papers_by_cell:
             return []
-        ranked_neighbors = sorted(
-            neighbor_cells,
-            key=lambda nc: cells_lookup.get(nc, {}).get("paper_count", 0) or 0,
-            reverse=True,
-        )
+        kw_tokens = cls._kw_token_set(neighbor_keywords)
 
         def to_node(paper: dict, nc: str) -> dict:
             sd = paper.get("submitted_date")
             year = getattr(sd, "year", None) if sd is not None else None
+            title = paper["title"]
             return {
                 "id": paper["arxiv_id"],
-                "title": paper["title"],
+                "title": title,
                 "neighbor_cell": nc,
                 "year": year,
+                "coherence": cls._coherence(title, kw_tokens),
             }
 
-        result: list[dict] = []
-        # 1차 패스: 각 셀 × 각 연도에서 1편씩 (연도 다양성 확보)
-        for nc in ranked_neighbors:
-            seen_years: set[int] = set()
+        # 모든 후보 paper를 수집한 뒤 coherence DESC + paper_count DESC + year DESC로 정렬.
+        # 그 후 (셀, 연도) 다양성 보존하며 limit 까지 채움.
+        all_nodes: list[dict] = []
+        for nc in neighbor_cells:
+            cell_count = cells_lookup.get(nc, {}).get("paper_count", 0) or 0
             for paper in papers_by_cell.get(nc, []):
                 node = to_node(paper, nc)
-                y = node.get("year")
-                if y is None or y in seen_years:
+                node["_cell_count"] = cell_count
+                all_nodes.append(node)
+        all_nodes.sort(
+            key=lambda n: (
+                -int(n.get("coherence") or 0),
+                -int(n.get("_cell_count") or 0),
+                -int(n.get("year") or 0),
+            )
+        )
+
+        result: list[dict] = []
+        seen_ids: set[str] = set()
+        seen_year_per_cell: dict[str, set[int]] = {}
+        # 1차 패스: 다양성 (셀 × 연도) 보존하며 coherence 큰 순서로 채움
+        for n in all_nodes:
+            cell = n["neighbor_cell"]
+            yr = n.get("year")
+            if yr is not None:
+                seen = seen_year_per_cell.setdefault(cell, set())
+                if yr in seen:
                     continue
-                seen_years.add(int(y))
-                result.append(node)
-                if len(result) >= limit:
-                    return result
-        # 2차 패스: 부족하면 셀별 추가 논문 채우기
-        seen_ids = {n["id"] for n in result}
-        for nc in ranked_neighbors:
-            for paper in papers_by_cell.get(nc, []):
-                if paper["arxiv_id"] in seen_ids:
-                    continue
-                result.append(to_node(paper, nc))
-                seen_ids.add(paper["arxiv_id"])
-                if len(result) >= limit:
-                    return result
+                seen.add(int(yr))
+            if n["id"] in seen_ids:
+                continue
+            seen_ids.add(n["id"])
+            n.pop("_cell_count", None)
+            result.append(n)
+            if len(result) >= limit:
+                return result
+        # 2차 패스: 부족하면 다양성 무시하고 채움
+        for n in all_nodes:
+            if n["id"] in seen_ids:
+                continue
+            seen_ids.add(n["id"])
+            n.pop("_cell_count", None)
+            result.append(n)
+            if len(result) >= limit:
+                return result
         return result
 
     @staticmethod
@@ -542,9 +591,12 @@ class AdjacentGapDetector:
                 "bridge_text_ko": ko,
                 "bridge_text_en": en,
             }
+        def slim(p: dict) -> dict:
+            return {"id": p["id"], "title": p["title"], "year": p.get("year")}
+
         sorted_by_year = sorted(with_year, key=lambda p: p["year"])
-        foundations = sorted_by_year[:2]
-        active = sorted(with_year, key=lambda p: -p["year"])[:3]
+        foundations = [slim(p) for p in sorted_by_year[:2]]
+        active = [slim(p) for p in sorted(with_year, key=lambda p: -p["year"])[:3]]
         years = [p["year"] for p in with_year]
         gap_years = max(years) - min(years) if years else 0
         n_total = len(with_year)
@@ -748,6 +800,7 @@ class AdjacentGapDetector:
                     "title": pl.Utf8,
                     "neighbor_cell": pl.Utf8,
                     "year": pl.Int64,
+                    "coherence": pl.Int64,
                 })),
                 "lineage": pl.Struct({
                     "foundations": pl.List(pl.Struct({
@@ -766,5 +819,6 @@ class AdjacentGapDetector:
                 "rationale_template": pl.Utf8,
                 "rationale_ko": pl.Utf8,
                 "rationale_en": pl.Utf8,
+                "coherence": pl.Float64,
             }
         )

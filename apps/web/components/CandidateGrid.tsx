@@ -4,10 +4,11 @@ import { ArrowRight, Compass, Map as MapIcon, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { pickCandidateText, translateKeyword, ui } from "@/lib/i18n";
 import { useUIStore } from "@/lib/store";
-import type { WhitespaceCandidate } from "@/lib/types";
+import type { PaperPoint, WhitespaceCandidate } from "@/lib/types";
 
 interface Props {
   candidates: WhitespaceCandidate[];
+  papers: PaperPoint[];
 }
 
 interface Scored {
@@ -41,7 +42,7 @@ const ALIAS: Record<string, string[]> = {
   qg: ["question generation"],
 };
 
-export function CandidateGrid({ candidates }: Props) {
+export function CandidateGrid({ candidates, papers }: Props) {
   const locale = useUIStore((s) => s.locale);
   const selectCandidate = useUIStore((s) => s.selectCandidate);
   const setViewMode = useUIStore((s) => s.setViewMode);
@@ -86,6 +87,26 @@ export function CandidateGrid({ candidates }: Props) {
   const noMatch =
     query.segments.length > 0 && ranked.every((r) => r.matchCount === 0);
 
+  const nearbyPapers = useMemo(() => {
+    if (query.segments.length === 0 || query.allVariants.length === 0) return [];
+    const variants = query.allVariants;
+    const scored = papers
+      .map((p) => {
+        const title = normalize(p.title);
+        let hits = 0;
+        for (const v of variants) {
+          if (fuzzyContains(title, v)) hits += 1;
+        }
+        return { p, hits };
+      })
+      .filter((s) => s.hits > 0);
+    scored.sort((a, b) => {
+      if (b.hits !== a.hits) return b.hits - a.hits;
+      return (b.p.year ?? 0) - (a.p.year ?? 0);
+    });
+    return scored.slice(0, 30).map((s) => s.p);
+  }, [papers, query]);
+
   const open = (c: WhitespaceCandidate) => {
     selectCandidate(c);
     setViewMode("map");
@@ -115,6 +136,10 @@ export function CandidateGrid({ candidates }: Props) {
           locale={locale}
           showNoMatchHint={noMatch}
         />
+
+        {nearbyPapers.length > 0 && (
+          <NearbyPapers papers={nearbyPapers} locale={locale} />
+        )}
 
         {candidates.length === 0 ? (
           <div className="p-12 text-center text-sm text-[hsl(var(--foreground))]/60 border border-dashed border-[hsl(var(--border))] rounded-lg">
@@ -183,6 +208,55 @@ function TopicInput({
       {showNoMatchHint && (
         <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
           {ui.topicNoMatch[locale]}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function NearbyPapers({
+  papers,
+  locale,
+}: {
+  papers: PaperPoint[];
+  locale: "ko" | "en";
+}) {
+  return (
+    <section className="rounded-xl border border-blue-300/40 bg-blue-50/30 dark:bg-blue-950/20 p-4 space-y-3">
+      <div className="space-y-1">
+        <p className="text-sm font-bold text-blue-700 dark:text-blue-300">
+          {(ui.nearbyPapersTitle[locale] as (n: number) => string)(papers.length)}
+        </p>
+        <p className="text-xs text-[hsl(var(--foreground))]/55 leading-relaxed">
+          {ui.nearbyPapersHint[locale]}
+        </p>
+      </div>
+      <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[280px] overflow-y-auto pr-1">
+        {papers.slice(0, 12).map((p) => (
+          <li
+            key={p.id}
+            className="text-sm leading-snug p-2.5 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
+          >
+            <a
+              href={`https://scholar.google.com/scholar?q=${encodeURIComponent(p.title)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="block hover:text-blue-600 dark:hover:text-blue-300 transition"
+            >
+              <p className="line-clamp-2 font-medium">{p.title}</p>
+              <p className="mt-1 text-xs text-[hsl(var(--foreground))]/55 font-mono">
+                {p.id}
+                {p.year ? ` · ${p.year}` : ""}
+              </p>
+            </a>
+          </li>
+        ))}
+      </ul>
+      {papers.length > 12 && (
+        <p className="text-xs text-[hsl(var(--foreground))]/55">
+          {locale === "ko"
+            ? `… 외 ${papers.length - 12}편`
+            : `… and ${papers.length - 12} more`}
         </p>
       )}
     </section>

@@ -141,8 +141,13 @@ export type Locale = "ko" | "en";
 const STRINGS = {
   appTitle: { ko: "PaperLand", en: "PaperLand" },
   appSubtitle: {
-    ko: "arXiv cs.CL 연구 지형도 — 공백 후보 탐지기",
-    en: "arXiv cs.CL research landscape — Whitespace detector",
+    ko: "arXiv 연구 지형도 — 인접 공백 후보 탐지",
+    en: "arXiv research landscape — adjacent whitespace detector",
+  },
+  datasetLabel: { ko: "현재 분야", en: "Current category" },
+  datasetSwitchHint: {
+    ko: "다른 분야 (cs.LG · cs.AI · cs.CV 등) 데이터셋은 운영자가 빌드해야 표시됩니다. 화면에서의 직접 전환은 다음 라운드 예정.",
+    en: "Other categories (cs.LG · cs.AI · cs.CV …) need an operator-side rebuild. In-app switching is scheduled for the next round.",
   },
   fixtureBadge: {
     ko: "⚠️ 샘플 데모 — 실제 arXiv 지형 아님",
@@ -198,6 +203,14 @@ const STRINGS = {
   topicNoMatch: {
     ko: "정확히 일치하는 후보가 없어 원래 순서로 보여드립니다. 다른 키워드를 시도하거나 카드의 인접 키워드를 클릭해보세요.",
     en: "No exact matches — showing original order. Try other keywords or click an adjacent keyword chip on a card.",
+  },
+  nearbyPapersTitle: {
+    ko: (n: number) => `내 주제 주변 논문 ${n}편`,
+    en: (n: number) => `${n} paper${n === 1 ? "" : "s"} near my topic`,
+  },
+  nearbyPapersHint: {
+    ko: "현재 데이터셋에서 입력 키워드/약어가 제목에 매칭되는 논문입니다. 진짜 임베딩 기반 의미 검색은 다음 라운드 예정.",
+    en: "Papers from the current dataset whose titles match your keywords/aliases. True embedding-based semantic search is scheduled for the next round.",
   },
   modeToggle: {
     ko: "공백 후보 모드 — 지도에서 강조",

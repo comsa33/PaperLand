@@ -133,6 +133,7 @@ def build_artifacts(
             "lineage": lineage,
             "own_count": int(row["own_count"]),
             "neighbor_density": float(row["neighbor_density"]),
+            "coherence": float(row.get("coherence") or 0.0),
             "suggested_queries": _build_suggested_queries(neighbor_kws),
         })
     ws_checksum = _write_json(out_dir / "whitespace_top10.json", ws_payload)

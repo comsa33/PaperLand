@@ -41,6 +41,7 @@ export interface NearestPaper {
   title: string;
   neighbor_cell: string;
   year?: number | null;
+  coherence?: number;
 }
 
 export interface LineagePaper {
@@ -73,6 +74,7 @@ export interface WhitespaceCandidate {
   lineage?: Lineage;
   own_count: number;
   neighbor_density: number;
+  coherence?: number;
   suggested_queries: string[];
 }
 
