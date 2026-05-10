@@ -301,6 +301,15 @@ function VisualFormula({ locale }: { locale: "ko" | "en" }) {
       />
       <Sep />
       <Chip
+        glyph={
+          <span className="inline-flex items-center justify-center px-1 py-0.5 rounded bg-slate-900 border border-white/40 text-[9px] font-bold text-white/95 leading-none">
+            Aa
+          </span>
+        }
+        label={locale === "ko" ? "큰 라벨 = 연구 영역" : "big label = region"}
+      />
+      <Sep />
+      <Chip
         glyph={<HexChip color="transparent" cyanOutline />}
         label={
           locale === "ko" ? "하늘색 테두리 = 선택한 셀" : "cyan outline = selected cell"
