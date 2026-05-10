@@ -299,6 +299,13 @@ function Card({
   const sample = candidate.nearest_papers[0];
   const matchCount = matched.size;
   const isMatched = matchCount > 0;
+  const type = candidate.candidate_type ?? "sparse_bridge";
+  const typeLabel =
+    type === "empty"
+      ? ui.candidateTypeEmpty[locale]
+      : type === "recent_gap"
+        ? ui.candidateTypeRecent[locale]
+        : ui.candidateTypeSparse[locale];
   return (
     <button
       type="button"
@@ -328,6 +335,12 @@ function Card({
           <span>
             {ui.scoreLabel[locale]} {candidate.score.toFixed(1)}
           </span>
+        </span>
+      </div>
+
+      <div>
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/15 border border-orange-400/40 text-[11px] font-bold text-orange-700 dark:text-orange-300">
+          {typeLabel}
         </span>
       </div>
 

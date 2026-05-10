@@ -30,6 +30,57 @@ def _phrase_signature(phrase: str) -> str:
     return " ".join(parts)
 
 
+# 토큰화 전 lowercase 텍스트에 적용. 하이픈으로 끊기는 합성어를 한 토큰으로 묶어
+# 'chest x-ray' 같은 phrase가 'chest', 'x', 'ray'로 쪼개져 'chest ray' 같은
+# 가짜 bigram을 만드는 회귀를 차단한다.
+# 순서 중요 — str.replace 은 substring 매칭이라 plural을 먼저 둬야 'x-rays'가
+# 'x-ray' 룰에 먼저 잡혀 'xrays'로 잘못 변환되는 버그를 피한다.
+_HYPHEN_COMPOUNDS: tuple[tuple[str, str], ...] = (
+    ("x-rays", "xray"),
+    ("x-ray", "xray"),
+    ("ct-scans", "ctscan"),
+    ("ct-scan", "ctscan"),
+    ("mri-scans", "mriscan"),
+    ("mri-scan", "mriscan"),
+)
+
+
+def _preprocess_phrase(text: str) -> str:
+    out = text
+    for src, dst in _HYPHEN_COMPOUNDS:
+        out = out.replace(src, dst)
+    return out
+
+
+# 토큰화·집계 후 surface 형태에 적용. preprocess로 합쳐진 합성어를 사용자에게
+# 보여줄 때 다시 정상 표기로 복원하고, 잘 알려진 phrase는 표준형으로 통일한다.
+_PHRASE_ALIASES: dict[str, str] = {
+    "chest xray": "chest x-ray",
+    "lung xray": "lung x-ray",
+    "ctscan image": "ct scan",
+    "ctscan images": "ct scan",
+    "mriscan image": "mri scan",
+}
+
+
+def _canonicalize_surface(phrase: str) -> str:
+    return _PHRASE_ALIASES.get(phrase, phrase)
+
+
+# 라벨로서 의미가 약하거나 abstract 미사용 표현에서 자주 만들어져 신뢰를 깎는 phrase.
+# weak_bigrams에 추가되어 keyword 후보 점수를 0으로 만든다.
+_NOISY_PHRASES: frozenset[str] = frozenset({
+    "light image",
+    "light images",
+    "shed light",
+    "sheds light",
+    "shedding light",
+    "high quality",
+    "low quality",
+    "wide range",
+})
+
+
 def cluster_hdbscan(
     embeddings: np.ndarray,
     min_cluster_size: int = 15,
@@ -103,8 +154,9 @@ def extract_cluster_keywords(
     def phrase_aware_analyzer(text: str) -> list[str]:
         ngrams: list[str] = []
         for phrase in re.split(r"[.\n]+", text):
+            normed = _preprocess_phrase(phrase.lower())
             tokens = [
-                t for t in re.findall(r"\b\w\w+\b", phrase.lower())
+                t for t in re.findall(r"\b\w\w+\b", normed)
                 if t not in sklearn_stop
             ]
             ngrams.extend(tokens)
@@ -147,7 +199,7 @@ def extract_cluster_keywords(
         "model model",
         "data data",
         "task task",
-    }
+    } | set(_NOISY_PHRASES)
     is_weak = np.array([name in weak_bigrams for name in feature_names])
 
     result: dict[int, list[str]] = {}
@@ -190,7 +242,9 @@ def extract_cluster_keywords(
                     keywords.append(kw)
                 if len(keywords) >= top_n:
                     break
-        result[cid] = keywords
+        # surface canonicalization — preprocess가 합친 'chest xray' 같은 토큰을
+        # 사용자 표기('chest x-ray')로 복원하고 잘 알려진 phrase를 통일.
+        result[cid] = [_canonicalize_surface(k) for k in keywords]
     return result
 
 

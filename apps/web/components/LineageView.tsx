@@ -119,7 +119,7 @@ function EvidenceSummary({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <FlowChip label={ui.flowAGroup[locale]} text={flowA} tone="blue" />
         <FlowChip
-          label={ui.bridgeGap[locale]}
+          label={ui.crossingAxis[locale]}
           text={bridge || (locale === "ko" ? "(직접 결합)" : "(direct bridge)")}
           tone="orange"
         />
@@ -621,7 +621,10 @@ function pickFlowLabels(candidate: WhitespaceCandidate): string[] {
 
 function buildOneLineSentence(labels: string[], locale: "ko" | "en"): string {
   if (locale === "en") {
-    if (labels.length >= 2) {
+    if (labels.length >= 3) {
+      return `Few papers directly combine "${labels[0]}" × "${labels[1]}" × "${labels[2]}" in this area.`;
+    }
+    if (labels.length === 2) {
       return `Few papers directly bridge the "${labels[0]}" flow and the "${labels[1]}" flow in this area.`;
     }
     if (labels.length === 1) {
@@ -629,7 +632,10 @@ function buildOneLineSentence(labels: string[], locale: "ko" | "en"): string {
     }
     return "Few papers directly bridge the surrounding flows in this area.";
   }
-  if (labels.length >= 2) {
+  if (labels.length >= 3) {
+    return `"${labels[0]}" × "${labels[1]}" × "${labels[2]}" 결합이 주변 대비 적은 영역입니다.`;
+  }
+  if (labels.length === 2) {
     return `이 후보는 "${labels[0]}" 흐름과 "${labels[1]}" 흐름 사이에 아직 직접 연결 논문이 적은 영역입니다.`;
   }
   if (labels.length === 1) {

@@ -205,6 +205,7 @@ const STRINGS = {
   flowAGroup: { ko: "흐름 A", en: "Flow A" },
   flowBGroup: { ko: "흐름 B", en: "Flow B" },
   bridgeGap: { ko: "덜 탐색된 결합", en: "Underexplored bridge" },
+  crossingAxis: { ko: "교차 축", en: "Crossing axis" },
   detailsToggle: { ko: "연도별 인접 논문 자세히", en: "Year-by-year details" },
   flowNeedsCandidate: {
     ko: "후보를 먼저 선택하면 흐름을 볼 수 있어요.",

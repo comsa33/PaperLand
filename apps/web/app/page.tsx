@@ -145,14 +145,14 @@ make web`}
             icon={<MapIcon className="w-4 h-4" />}
             label={ui.tabMap[locale]}
           />
-          <TabButton
-            active={viewMode === "lineage"}
-            onClick={() => setViewMode("lineage")}
-            disabled={!selectedCandidate}
-            disabledHint={ui.flowNeedsCandidate[locale]}
-            icon={<GitBranch className="w-4 h-4" />}
-            label={ui.tabFlow[locale]}
-          />
+          {selectedCandidate && (
+            <TabButton
+              active={viewMode === "lineage"}
+              onClick={() => setViewMode("lineage")}
+              icon={<GitBranch className="w-4 h-4" />}
+              label={ui.tabFlow[locale]}
+            />
+          )}
         </nav>
 
         {isFixture && (
