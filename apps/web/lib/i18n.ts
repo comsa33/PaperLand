@@ -178,6 +178,27 @@ const STRINGS = {
     ko: "오른쪽 패널에 인접 논문 5편과 Scholar 검색 쿼리가 있습니다.",
     en: "Right panel shows 5 nearest papers and Scholar verification queries.",
   },
+  topicLabel: {
+    ko: "내 관심 주제",
+    en: "My topic",
+  },
+  topicPlaceholder: {
+    ko: "예: RAG evaluation, knowledge graph QA, korean nlp …",
+    en: "e.g., RAG evaluation, knowledge graph QA, agent planning …",
+  },
+  topicHint: {
+    ko: "키워드를 쉼표·공백으로 구분해 입력하면, 위 후보가 관련도 순으로 재정렬되고 매칭 키워드가 강조됩니다. (현재는 키워드 일치 — 의미 검색은 다음 라운드)",
+    en: "Type keywords (comma or space separated). Candidates are re-ranked by overlap and matching keywords get highlighted. (Lexical match for now — semantic search is the next round.)",
+  },
+  topicMatchBadge: {
+    ko: (n: number) => `매칭 ${n}개`,
+    en: (n: number) => `${n} match${n === 1 ? "" : "es"}`,
+  },
+  topicReset: { ko: "초기화", en: "Reset" },
+  topicNoMatch: {
+    ko: "정확히 일치하는 후보가 없어 원래 순서로 보여드립니다. 다른 키워드를 시도하거나 카드의 인접 키워드를 클릭해보세요.",
+    en: "No exact matches — showing original order. Try other keywords or click an adjacent keyword chip on a card.",
+  },
   modeToggle: {
     ko: "공백 후보 모드 — 지도에서 강조",
     en: "Whitespace mode — highlight candidates",
