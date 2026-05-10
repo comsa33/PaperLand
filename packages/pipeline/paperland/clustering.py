@@ -16,6 +16,20 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 NOISE_LABEL = -1
 
 
+def _phrase_signature(phrase: str) -> str:
+    """단복수/대소문자/공백 둔감 signature. detectors와 동일 룰."""
+    parts = []
+    for w in phrase.lower().split():
+        w = w.strip()
+        if len(w) >= 4 and w.endswith("ies"):
+            w = w[:-3] + "y"
+        elif len(w) >= 4 and w.endswith("s") and not w.endswith("ss"):
+            w = w[:-1]
+        if w:
+            parts.append(w)
+    return " ".join(parts)
+
+
 def cluster_hdbscan(
     embeddings: np.ndarray,
     min_cluster_size: int = 15,
@@ -145,13 +159,22 @@ def extract_cluster_keywords(
         order = adjusted.argsort()[::-1]
 
         multiword_picks: list[str] = []
+        seen_sigs: set[str] = set()
         unigram_backup: list[str] = []
         for i in order:
             if row[i] <= 0:
                 break
             if is_multiword[i]:
+                cand = feature_names[i]
+                sig = _phrase_signature(cand)
+                # 같은 signature(단복수/대소문자 차이만)인 phrase는 점수 높은 첫
+                # 것만 채택. 'medical image'와 'medical images'를 동시 채택하던
+                # 회귀를 차단.
+                if sig in seen_sigs:
+                    continue
                 if len(multiword_picks) < top_n:
-                    multiword_picks.append(feature_names[i])
+                    multiword_picks.append(cand)
+                    seen_sigs.add(sig)
             else:
                 token = feature_names[i]
                 if any(token in m.split() for m in multiword_picks):

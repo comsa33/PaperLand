@@ -50,13 +50,21 @@ export const useUIStore = create<UIState>((set) => ({
     set({ locale: l });
   },
   setViewMode: (m) => set({ viewMode: m }),
-  setCategory: (c) => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(CATEGORY_KEY, c);
-    }
-    // 카테고리 바뀌면 선택은 초기화하되 viewMode는 유지 (사용자가 보고 있던 탭 유지).
-    set({ category: c, selectedCandidate: null, selectedCellId: null });
-  },
+  setCategory: (c) =>
+    set((s) => {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(CATEGORY_KEY, c);
+      }
+      // 카테고리 바뀌면 선택은 초기화. viewMode는 유지하되, lineage 모드는 후보가
+      // 새로 받아져 임의 후보가 swap되는 회귀를 막기 위해 map으로 강제 이동.
+      const nextViewMode = s.viewMode === "lineage" ? "map" : s.viewMode;
+      return {
+        category: c,
+        selectedCandidate: null,
+        selectedCellId: null,
+        viewMode: nextViewMode,
+      };
+    }),
 }));
 
 export function hydrateLocale() {

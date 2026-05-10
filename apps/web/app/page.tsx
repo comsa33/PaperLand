@@ -1,6 +1,6 @@
 "use client";
 
-import { Compass, Languages, Map as MapIcon } from "lucide-react";
+import { Compass, GitBranch, Languages, Map as MapIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { CandidateGrid } from "@/components/CandidateGrid";
 import { LineageView } from "@/components/LineageView";
@@ -26,6 +26,7 @@ export default function HomePage() {
   const setViewMode = useUIStore((s) => s.setViewMode);
   const category = useUIStore((s) => s.category);
   const setCategory = useUIStore((s) => s.setCategory);
+  const selectedCandidate = useUIStore((s) => s.selectedCandidate);
 
   const hasCandidates = (data?.whitespace.length ?? 0) > 0;
 
@@ -133,10 +134,18 @@ make web`}
             label={`${ui.tabCandidates[locale]} (${data.whitespace.length})`}
           />
           <TabButton
-            active={viewMode === "map" || viewMode === "lineage"}
+            active={viewMode === "map"}
             onClick={() => setViewMode("map")}
             icon={<MapIcon className="w-4 h-4" />}
             label={ui.tabMap[locale]}
+          />
+          <TabButton
+            active={viewMode === "lineage"}
+            onClick={() => setViewMode("lineage")}
+            disabled={!selectedCandidate}
+            disabledHint={ui.flowNeedsCandidate[locale]}
+            icon={<GitBranch className="w-4 h-4" />}
+            label={ui.tabFlow[locale]}
           />
         </nav>
 

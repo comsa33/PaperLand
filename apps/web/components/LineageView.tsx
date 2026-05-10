@@ -47,17 +47,23 @@ export function LineageView({ candidates }: Props) {
   const selectCandidate = useUIStore((s) => s.selectCandidate);
   const locale = useUIStore((s) => s.locale);
   const setViewMode = useUIStore((s) => s.setViewMode);
-  const candidate =
-    selectedCandidate ?? (candidates.length > 0 ? candidates[0] : null);
+  const candidate = selectedCandidate; // fallback 제거 — 임의 후보 노출 차단
 
   if (!candidate) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center text-[hsl(var(--foreground))]/65">
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-[hsl(var(--foreground))]/65 p-8 text-center">
         <p className="text-base">
           {locale === "ko"
-            ? "후보 목록에서 공백 후보를 선택한 뒤 다시 들어와 보세요."
-            : "Pick a whitespace candidate from the list and try again."}
+            ? "선택된 공백 후보가 없습니다. 후보 카드에서 하나를 선택하면 흐름이 열립니다."
+            : "No candidate is selected. Pick one from the candidate cards to open the flow."}
         </p>
+        <button
+          type="button"
+          onClick={() => setViewMode("map")}
+          className="px-3 py-1.5 rounded text-sm font-semibold border border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))] transition"
+        >
+          {locale === "ko" ? "← 지도로 돌아가기" : "← Back to the map"}
+        </button>
       </div>
     );
   }

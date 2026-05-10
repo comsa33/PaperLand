@@ -108,15 +108,16 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
       lineWidthMinPixels: 1,
       getFillColor: (d) => {
         const isWS = whitespaceCellIds.has(d.cell_id);
+        const isSelected = selectedCellId === d.cell_id;
+        const dim = selectedCellId && !isSelected ? 0.5 : 1.0;
         if (isWS) {
-          return [255, 140, 0, 210]; // 주황 = 공백 후보 (selected 여부와 무관)
+          return [255, 140, 0, Math.round(210 * dim)];
         }
-        // 일반 셀은 항상 밀도 색상 유지. selected는 outline으로만 표시.
         const intensity = Math.min(1, d.paper_count / maxCount);
         const r = Math.floor(40 + (1 - intensity) * 80);
         const g = Math.floor(80 + (1 - intensity) * 60);
         const b = Math.floor(255 - intensity * 30);
-        return [r, g, b, 180];
+        return [r, g, b, Math.round(180 * dim)];
       },
       getLineColor: (d) =>
         whitespaceCellIds.has(d.cell_id)
@@ -172,33 +173,30 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
       ? cells.find((c) => c.cell_id === selectedCellId)
       : undefined;
 
+    // 흰 halo (외부) + cyan 두꺼운 ring (그 안쪽) — 두 겹으로 어떤 배경에서도 또렷.
+    const selectedHaloLayer = new H3HexagonLayer<{ cell_id: string }>({
+      id: "selected-halo",
+      data: selectedCell ? [{ cell_id: selectedCell.cell_id }] : [],
+      getHexagon: (d) => d.cell_id,
+      filled: false,
+      stroked: true,
+      getLineColor: [255, 255, 255, 255],
+      lineWidthMinPixels: 16,
+      pickable: false,
+    });
+
     const selectedRingLayer = new H3HexagonLayer<{ cell_id: string }>({
       id: "selected-ring",
       data: selectedCell ? [{ cell_id: selectedCell.cell_id }] : [],
       getHexagon: (d) => d.cell_id,
       filled: false,
       stroked: true,
-      getLineColor: [56, 189, 248, 255], // cyan-400
-      lineWidthMinPixels: 5,
-      pickable: false,
-    });
-
-    const selectedPinLayer = new ScatterplotLayer<Cell>({
-      id: "selected-pin",
-      data: selectedCell ? [selectedCell] : [],
-      getPosition: (d) => [d.centroid_x, d.centroid_y],
-      stroked: true,
-      filled: true,
-      getFillColor: [255, 255, 255, 240],
       getLineColor: [14, 165, 233, 255], // sky-500
-      lineWidthMinPixels: 2,
-      radiusMinPixels: 5,
-      radiusMaxPixels: 7,
-      getRadius: 0,
+      lineWidthMinPixels: 9,
       pickable: false,
     });
 
-    return [cellLayer, pointsLayer, selectedRingLayer, selectedPinLayer, labelLayer];
+    return [cellLayer, pointsLayer, selectedHaloLayer, selectedRingLayer, labelLayer];
   }, [
     cells,
     papers,
@@ -288,6 +286,11 @@ function VisualFormula({ locale }: { locale: "ko" | "en" }) {
         glyph={<HexChip color="#f97316" outline />}
         label={locale === "ko" ? "주황 = 공백 후보" : "orange = whitespace"}
       />
+      <Sep />
+      <Chip
+        glyph={<HexChip color="transparent" cyanOutline />}
+        label={locale === "ko" ? "cyan = 선택 영역" : "cyan = selected"}
+      />
     </div>
   );
 }
@@ -305,15 +308,29 @@ function Sep() {
   return <span className="text-white/30">·</span>;
 }
 
-function HexChip({ color, outline }: { color: string; outline?: boolean }) {
+function HexChip({
+  color,
+  outline,
+  cyanOutline,
+}: {
+  color: string;
+  outline?: boolean;
+  cyanOutline?: boolean;
+}) {
+  const stroke = cyanOutline
+    ? "rgba(14,165,233,1)"
+    : outline
+      ? "rgba(249,115,22,1)"
+      : "rgba(255,255,255,0.3)";
+  const strokeWidth = cyanOutline ? 1.8 : outline ? 1.4 : 0.6;
   return (
     <svg width="14" height="13" viewBox="0 0 14 13" className="shrink-0">
       <polygon
         points="3.5,0.7 10.5,0.7 13.3,6.5 10.5,12.3 3.5,12.3 0.7,6.5"
-        fill={color}
-        opacity={0.9}
-        stroke={outline ? "rgba(249,115,22,1)" : "rgba(255,255,255,0.3)"}
-        strokeWidth={outline ? 1.4 : 0.6}
+        fill={color === "transparent" ? "none" : color}
+        opacity={cyanOutline ? 1 : 0.9}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
       />
     </svg>
   );

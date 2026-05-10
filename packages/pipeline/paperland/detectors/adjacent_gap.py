@@ -57,6 +57,25 @@ _MODEL_KEYWORDS = {
 }
 
 
+def _phrase_signature(phrase: str) -> str:
+    """phrase를 단복수/공백/대소문자에 둔감한 signature로 변환.
+
+    'Medical Image' / 'medical images' / 'medical image' 모두 같은 sig.
+    각 단어의 끝 's'를 (4자 이상에서) 제거 — 보수적인 plural 룰.
+    'class' 같은 짧은 단어는 끝 's' 보존.
+    """
+    parts = []
+    for w in phrase.lower().split():
+        w = w.strip()
+        if len(w) >= 4 and w.endswith("ies"):
+            w = w[:-3] + "y"
+        elif len(w) >= 4 and w.endswith("s") and not w.endswith("ss"):
+            w = w[:-1]
+        if w:
+            parts.append(w)
+    return " ".join(parts)
+
+
 def _classify_keyword(kw: str) -> str:
     """키워드를 method / domain / task / model / unknown 중 하나로 분류.
 
@@ -718,14 +737,34 @@ class AdjacentGapDetector:
     def _aggregate_neighbor_keywords(
         neighbor_cells: list[str], cells_lookup: dict[str, dict]
     ) -> list[str]:
+        """이웃 셀들의 top_keywords를 합산. 단복수 정규화로 'medical image' /
+        'medical images' 같은 near-duplicate가 두 번 들어가지 않게 한다.
+        """
         from collections import Counter
 
-        counter: Counter[str] = Counter()
+        # surface 형태별 카운트
+        surface_counter: Counter[str] = Counter()
         for nc in neighbor_cells:
             if nc in cells_lookup:
                 for kw in cells_lookup[nc].get("top_keywords") or []:
-                    counter[kw] += 1
-        return [kw for kw, _ in counter.most_common(5)]
+                    surface_counter[kw] += 1
+
+        # signature 별 합산 + 가장 자주 나오는 surface 형태 선택
+        sig_to_surfaces: dict[str, Counter[str]] = {}
+        sig_total: Counter[str] = Counter()
+        for surface, c in surface_counter.items():
+            sig = _phrase_signature(surface)
+            sig_to_surfaces.setdefault(sig, Counter())[surface] += c
+            sig_total[sig] += c
+
+        result: list[str] = []
+        for sig, _ in sig_total.most_common():
+            # 같은 signature 안에서는 가장 자주 나온 surface 채택
+            best_surface = sig_to_surfaces[sig].most_common(1)[0][0]
+            result.append(best_surface)
+            if len(result) >= 5:
+                break
+        return result
 
     @staticmethod
     def _aggregate_neighbor_categories(
