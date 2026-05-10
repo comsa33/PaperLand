@@ -177,54 +177,12 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
     });
 
     // 선택 셀 시각화 — fill을 건드리지 않고 별도 레이어로 cyan ring + 중심 점.
+    // 텍스트 라벨은 사용하지 않음: 우측 패널/툴팁에서 로컬 주제를 보여 주며, 지도
+    // 위에 텍스트가 추가되면 region label과 겹치고 "선택 표시 vs 주제 설명"이
+    // 헷갈리는 회귀가 있었다.
     const selectedCell = selectedCellId
       ? cells.find((c) => c.cell_id === selectedCellId)
       : undefined;
-
-    // 선택 셀 위에 로컬 키워드 라벨을 띄움 — 지도 큰 라벨(클러스터)와 구분되는
-    // cyan 톤의 작은 라벨로 그 셀의 로컬 주제를 즉시 보여 준다.
-    interface SelectedCellLabel {
-      label: string;
-      x: number;
-      y: number;
-    }
-    const selectedCellLabel: SelectedCellLabel[] =
-      selectedCell && (selectedCell.top_keywords?.length ?? 0) > 0
-        ? [
-            {
-              label:
-                (locale === "ko" ? "선택 영역: " : "Selected: ") +
-                selectedCell.top_keywords.slice(0, 2).join(" · "),
-              x: selectedCell.centroid_x,
-              y: selectedCell.centroid_y,
-            },
-          ]
-        : [];
-
-    const selectedCellLabelLayer = new TextLayer<SelectedCellLabel>({
-      id: "selected-cell-label",
-      data: selectedCellLabel,
-      pickable: false,
-      getPosition: (d) => [d.x, d.y],
-      getText: (d) => d.label,
-      getSize: 13,
-      sizeUnits: "pixels",
-      getColor: [255, 255, 255, 245],
-      outlineColor: [14, 78, 105, 220],
-      outlineWidth: 3,
-      fontSettings: { sdf: true },
-      fontFamily:
-        '"Pretendard Variable", Pretendard, -apple-system, system-ui, sans-serif',
-      fontWeight: 600,
-      getTextAnchor: "middle",
-      getAlignmentBaseline: "center",
-      background: true,
-      backgroundPadding: [8, 4],
-      getBackgroundColor: [14, 165, 233, 220],
-      getBorderColor: [255, 255, 255, 200],
-      getBorderWidth: 1,
-      getPixelOffset: [0, -22],
-    });
 
     // 흰 halo (외부) + cyan 두꺼운 ring (그 안쪽) — 두 겹으로 어떤 배경에서도 또렷.
     const selectedHaloLayer = new H3HexagonLayer<{ cell_id: string }>({
@@ -249,14 +207,7 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
       pickable: false,
     });
 
-    return [
-      cellLayer,
-      pointsLayer,
-      selectedHaloLayer,
-      selectedRingLayer,
-      labelLayer,
-      selectedCellLabelLayer,
-    ];
+    return [cellLayer, pointsLayer, selectedHaloLayer, selectedRingLayer, labelLayer];
   }, [
     cells,
     papers,
@@ -266,7 +217,6 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
     whitespace,
     selectCell,
     selectCandidate,
-    locale,
   ]);
 
   return (
@@ -352,7 +302,9 @@ function VisualFormula({ locale }: { locale: "ko" | "en" }) {
       <Sep />
       <Chip
         glyph={<HexChip color="transparent" cyanOutline />}
-        label={locale === "ko" ? "cyan = 선택 영역" : "cyan = selected"}
+        label={
+          locale === "ko" ? "하늘색 테두리 = 선택한 셀" : "cyan outline = selected cell"
+        }
       />
     </div>
   );
