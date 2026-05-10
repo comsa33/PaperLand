@@ -34,7 +34,7 @@ def test_detector_finds_sparse_cell_surrounded_by_dense():
     import h3
 
     center = coords_to_h3(0.0, 0.0)
-    neighbors = list(h3.grid_disk(center, 1) - {center})
+    neighbors = list(set(h3.grid_disk(center, 1)) - {center})
 
     rows = []
     # 중심 셀: 0 papers (sparse)

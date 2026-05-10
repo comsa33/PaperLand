@@ -98,12 +98,27 @@ export function SidePanel({ cells, papers, whitespace }: Props) {
 
 function EmptyState() {
   return (
-    <div className="p-6 text-center">
-      <p className="text-xs text-[hsl(var(--foreground))]/60 leading-relaxed">
-        지도에서 셀을 클릭하거나
-        <br />
-        좌측 공백 후보를 선택하세요.
-      </p>
+    <div className="p-6 space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold mb-2">상세 패널</h3>
+        <p className="text-xs text-[hsl(var(--foreground))]/65 leading-relaxed">
+          지도의 셀을 클릭하거나, 좌측 공백 후보를 선택하면 여기에 정보가 표시됩니다.
+        </p>
+      </div>
+      <ul className="text-[11px] text-[hsl(var(--foreground))]/60 space-y-2 leading-relaxed">
+        <li className="flex gap-2">
+          <span className="text-[hsl(var(--accent))]">•</span>
+          <span>셀에 속한 대표 논문 5편</span>
+        </li>
+        <li className="flex gap-2">
+          <span className="text-[hsl(var(--accent))]">•</span>
+          <span>인접 영역의 키워드</span>
+        </li>
+        <li className="flex gap-2">
+          <span className="text-orange-500">•</span>
+          <span>공백 후보일 경우: 수치 근거 + Google Scholar 검색 링크</span>
+        </li>
+      </ul>
     </div>
   );
 }

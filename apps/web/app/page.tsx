@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Map } from "@/components/Map";
+import { Onboarding } from "@/components/Onboarding";
 import { SidePanel } from "@/components/SidePanel";
 import { WhitespacePanel } from "@/components/WhitespacePanel";
 import { loadMapData } from "@/lib/data";
@@ -68,6 +69,7 @@ paperland fixtures --out ../../apps/web/public/data`}
             papers={data.papers}
             whitespace={data.whitespace}
           />
+          <Onboarding />
         </div>
         <SidePanel
           cells={data.cells}

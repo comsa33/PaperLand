@@ -22,8 +22,7 @@ env/
 .ruff_cache/
 .ipynb_checkpoints/
 
-# uv
-uv.lock
+# uv — lockfile은 커밋 (재현성)
 
 # ===== Data =====
 # 원본/중간 산출물은 커밋 금지 — 용량 큼 + 재생성 가능
