@@ -5,12 +5,9 @@
 CATEGORY ?= cs.CL
 SLUG = $(shell echo $(CATEGORY) | tr 'A-Z.' 'a-z-')
 PARQUET = data/raw/arxiv-$(SLUG).parquet
-# cs.CL은 호환을 위해 기존 root 경로 유지, 그 외 카테고리는 서브 디렉토리.
-ifeq ($(CATEGORY),cs.CL)
-OUTDIR = apps/web/public/data
-else
+# 모든 카테고리를 동일하게 슬러그 디렉토리로 출력 (cs.CL → cs-cl).
+# data/catalog.json + 각 카테고리의 latest.json 포인터 + epoch별 immutable.
 OUTDIR = apps/web/public/data/$(SLUG)
-endif
 
 help:
 	@echo "PaperLand 개발 명령"
@@ -30,7 +27,7 @@ install:
 	npm install
 
 fixtures:
-	cd packages/pipeline && uv run paperland fixtures --out ../../apps/web/public/data
+	cd packages/pipeline && uv run paperland fixtures --out ../../apps/web/public/data/cs-cl
 
 fetch:
 	cd packages/pipeline && uv run paperland fetch \
@@ -40,7 +37,8 @@ fetch:
 real-build:
 	cd packages/pipeline && uv run paperland build \
 		--papers ../../$(PARQUET) \
-		--out ../../$(OUTDIR)
+		--out ../../$(OUTDIR) \
+		--primary $(CATEGORY)
 
 web:
 	cd apps/web && npm run dev

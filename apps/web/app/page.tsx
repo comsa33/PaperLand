@@ -7,7 +7,12 @@ import { LineageView } from "@/components/LineageView";
 import { Map } from "@/components/Map";
 import { Onboarding } from "@/components/Onboarding";
 import { SidePanel } from "@/components/SidePanel";
-import { KNOWN_CATEGORIES, loadMapData, probeCategory } from "@/lib/data";
+import {
+  type Catalog,
+  type CatalogEntry,
+  loadCatalog,
+  loadMapData,
+} from "@/lib/data";
 import { ui, type Locale } from "@/lib/i18n";
 import { hydrateLocale, useUIStore } from "@/lib/store";
 import type { MapData } from "@/lib/types";
@@ -15,9 +20,7 @@ import type { MapData } from "@/lib/types";
 export default function HomePage() {
   const [data, setData] = useState<MapData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [availableCats, setAvailableCats] = useState<Set<string>>(
-    new Set(["cs.CL"])
-  );
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
   const locale = useUIStore((s) => s.locale);
   const setLocale = useUIStore((s) => s.setLocale);
   const viewMode = useUIStore((s) => s.viewMode);
@@ -30,31 +33,41 @@ export default function HomePage() {
     hydrateLocale();
   }, []);
 
-  // 카테고리 바뀔 때 데이터 reload
+  // catalog → 사용 가능한 데이터셋 목록
   useEffect(() => {
+    loadCatalog()
+      .then(setCatalog)
+      .catch((e: Error) => setError(`catalog.json: ${e.message}`));
+  }, []);
+
+  // 카테고리 바뀔 때 데이터 reload — catalog에서 slug 찾기
+  useEffect(() => {
+    if (!catalog) return;
+    const entry = findEntry(catalog, category) ?? catalog.datasets[0];
+    if (!entry) {
+      setError("catalog.json has no datasets");
+      return;
+    }
+    // localStorage에 저장된 카테고리가 catalog에 없으면 첫 번째로 자동 fallback
+    if (entry.primary !== category) {
+      setCategory(entry.primary);
+      return;
+    }
     setData(null);
     setError(null);
-    loadMapData(category)
+    loadMapData(entry.slug)
       .then(setData)
-      .catch((e: Error) => setError(e.message));
-  }, [category]);
-
-  // 빌드 가능한 카테고리 목록 한 번 prob (HEAD)
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all(
-      KNOWN_CATEGORIES.map(async (c) => [c.value, await probeCategory(c.value)] as const)
-    ).then((results) => {
-      if (cancelled) return;
-      const ok = new Set<string>();
-      for (const [v, present] of results) if (present) ok.add(v);
-      ok.add("cs.CL");
-      setAvailableCats(ok);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      .catch((e: Error) => {
+        // 데이터 로드 실패 시 다른 카테고리로 fallback 시도
+        const fallback = catalog.datasets.find((d) => d.primary !== category);
+        if (fallback) {
+          setError(`${e.message} → fallback to ${fallback.primary}`);
+          setCategory(fallback.primary);
+        } else {
+          setError(e.message);
+        }
+      });
+  }, [category, catalog, setCategory]);
 
   if (error) {
     return (
@@ -162,29 +175,27 @@ make web`}
               epoch {data.manifest.map_epoch} · {data.manifest.paper_count}{" "}
               {locale === "ko" ? "편" : "papers"}
             </span>
-            <label
-              className="flex items-center gap-1.5 font-semibold"
-              title={ui.datasetSwitchHint[locale]}
-            >
-              <span className="text-[hsl(var(--foreground))]/65">
-                {ui.datasetLabel[locale]}:
-              </span>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="px-2 py-1 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] font-mono text-xs focus:outline-none focus:ring-2 focus:ring-orange-400/40"
+            {catalog && catalog.datasets.length > 0 && (
+              <label
+                className="flex items-center gap-1.5 font-semibold"
+                title={ui.datasetSwitchHint[locale]}
               >
-                {KNOWN_CATEGORIES.map((c) => {
-                  const ok = availableCats.has(c.value);
-                  return (
-                    <option key={c.value} value={c.value} disabled={!ok}>
-                      {c.value}
-                      {ok ? "" : locale === "ko" ? " (빌드 필요)" : " (build needed)"}
+                <span className="text-[hsl(var(--foreground))]/65">
+                  {ui.datasetLabel[locale]}:
+                </span>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="px-2 py-1 rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] font-mono text-xs focus:outline-none focus:ring-2 focus:ring-orange-400/40"
+                >
+                  {catalog.datasets.map((d) => (
+                    <option key={d.primary} value={d.primary}>
+                      {d.label || d.primary} · {d.paper_count}
                     </option>
-                  );
-                })}
-              </select>
-            </label>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
           <button
             type="button"
@@ -228,4 +239,8 @@ make web`}
       </div>
     </main>
   );
+}
+
+function findEntry(catalog: Catalog, primary: string): CatalogEntry | undefined {
+  return catalog.datasets.find((d) => d.primary === primary);
 }

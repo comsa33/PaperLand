@@ -140,6 +140,7 @@ def generate_fixtures(
         whitespace_top=whitespace,
         embedding_model="synthetic-fixture@v0",
         categories=["cs.CL"],
+        primary_category="cs.CL",
     )
 
 

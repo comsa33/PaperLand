@@ -44,10 +44,27 @@ def build_artifacts(
     categories: list[str],
     cluster_centroids: dict[int, dict[str, float]] | None = None,
     map_epoch: str | None = None,
+    primary_category: str | None = None,
 ) -> Manifest:
-    """V0 artifact 5종을 out_dir에 기록하고 manifest를 반환."""
+    """카테고리별 V0 artifact 빌드.
+
+    구조:
+      out_dir/                       (예: apps/web/public/data/cs-cl/)
+        latest.json                  → {"epoch": "2026-W19"}
+        2026-W19/                    실제 artifact (epoch별 immutable)
+          manifest.json
+          cells.json
+          papers_index.json
+          cluster_labels.json
+          whitespace_top10.json
+
+    동시에 out_dir.parent/catalog.json (예: apps/web/public/data/catalog.json)을
+    갱신해 사용 가능한 데이터셋 목록을 노출.
+    """
     out_dir = Path(out_dir)
     map_epoch = map_epoch or datetime.now(timezone.utc).strftime("%Y-W%V")
+    epoch_dir = out_dir / map_epoch
+    epoch_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. cells.json
     cells_payload = []
@@ -61,7 +78,7 @@ def build_artifacts(
             "top_keywords": row.get("top_keywords") or [],
             "dominant_category": row.get("dominant_category"),
         })
-    cells_checksum = _write_json(out_dir / "cells.json", cells_payload)
+    cells_checksum = _write_json(epoch_dir / "cells.json", cells_payload)
 
     # 2. papers_index.json — 슬림 인덱스 (필요 필드만)
     paper_lookup = {row["arxiv_id"]: row for row in papers_df.to_dicts()}
@@ -79,7 +96,7 @@ def build_artifacts(
             "year": meta["submitted_date"].year if meta.get("submitted_date") else None,
             "category": meta.get("primary_category"),
         })
-    papers_checksum = _write_json(out_dir / "papers_index.json", papers_payload)
+    papers_checksum = _write_json(epoch_dir / "papers_index.json", papers_payload)
 
     # 3. cluster_labels.json — 키워드 + centroid (지도 라벨용)
     raw_labels: dict[int, list[str]] = {
@@ -97,7 +114,7 @@ def build_artifacts(
             entry["centroid_y"] = cluster_centroids[cid]["y"]
             entry["paper_count"] = int(cluster_centroids[cid].get("count", 0))
         cluster_payload[str(cid)] = entry
-    clusters_checksum = _write_json(out_dir / "cluster_labels.json", cluster_payload)
+    clusters_checksum = _write_json(epoch_dir / "cluster_labels.json", cluster_payload)
 
     # 4. whitespace_top10.json
     ws_payload = []
@@ -136,7 +153,7 @@ def build_artifacts(
             "coherence": float(row.get("coherence") or 0.0),
             "suggested_queries": _build_suggested_queries(neighbor_kws),
         })
-    ws_checksum = _write_json(out_dir / "whitespace_top10.json", ws_payload)
+    ws_checksum = _write_json(epoch_dir / "whitespace_top10.json", ws_payload)
 
     # 5. manifest.json (마지막에 작성 — deploy switch)
     manifest = Manifest(
@@ -152,8 +169,58 @@ def build_artifacts(
             "whitespace_top10.json": ws_checksum,
         },
     )
-    _write_json(out_dir / "manifest.json", manifest.model_dump())
+    _write_json(epoch_dir / "manifest.json", manifest.model_dump())
+
+    # latest.json — 빌드 epoch 포인터 (immutable epoch dir + mutable latest 분리)
+    _write_json(
+        out_dir / "latest.json",
+        {"epoch": map_epoch, "manifest": f"{map_epoch}/manifest.json"},
+    )
+
+    # catalog.json — 부모 디렉토리에서 데이터셋 인벤토리 갱신.
+    if primary_category:
+        _update_catalog(out_dir, primary_category, manifest)
+
     return manifest
+
+
+def _update_catalog(category_dir: Path, primary: str, manifest: Manifest) -> None:
+    """부모 디렉토리(예: apps/web/public/data/)의 catalog.json에 자기 항목 갱신."""
+    data_root = category_dir.parent
+    catalog_path = data_root / "catalog.json"
+    catalog: dict[str, Any] = {"datasets": []}
+    if catalog_path.exists():
+        try:
+            catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        except Exception:
+            catalog = {"datasets": []}
+    if "datasets" not in catalog or not isinstance(catalog["datasets"], list):
+        catalog["datasets"] = []
+    slug = category_dir.name  # 디렉토리 이름이 곧 slug (예: cs-cl)
+    entry = {
+        "primary": primary,
+        "slug": slug,
+        "label": primary,
+        "epoch": manifest.map_epoch,
+        "paper_count": manifest.paper_count,
+        "embedding_model": manifest.embedding_model,
+        "categories": list(manifest.categories),
+        "built_at": manifest.built_at,
+    }
+    # 기존 같은 primary가 있으면 교체, 없으면 추가
+    replaced = False
+    new_list: list[dict[str, Any]] = []
+    for d in catalog["datasets"]:
+        if isinstance(d, dict) and d.get("primary") == primary:
+            new_list.append(entry)
+            replaced = True
+        else:
+            new_list.append(d)
+    if not replaced:
+        new_list.append(entry)
+    catalog["datasets"] = new_list
+    catalog["updated_at"] = datetime.now(timezone.utc).isoformat()
+    _write_json(catalog_path, catalog)
 
 
 def _build_cluster_label(keywords: list[str]) -> str:

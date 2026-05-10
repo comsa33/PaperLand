@@ -99,12 +99,15 @@ def fetch(
 def build(
     papers_path: Path = typer.Option(..., "--papers", help="정제된 논문 Parquet"),
     out: Path = typer.Option(
-        Path("apps/web/public/data"), "--out", "-o", help="JSON artifact 출력"
+        Path("apps/web/public/data"), "--out", "-o", help="카테고리별 데이터 디렉토리"
     ),
     embedding_model: str = typer.Option(
         "allenai/specter2_base", "--model", help="HF 임베딩 모델"
     ),
     h3_resolution: int = typer.Option(3, "--h3", help="h3 격자 해상도"),
+    primary_category: str = typer.Option(
+        "cs.CL", "--primary", help="primary_category 필터 (예: cs.CL, cs.LG)"
+    ),
 ) -> None:
     """실데이터 Parquet으로 V0 artifact 빌드 (임베딩→UMAP→클러스터링→탐지→배포)."""
     from .ingestion import load_papers_from_parquet, validate_papers
@@ -122,12 +125,11 @@ def build(
     rprint(f"[cyan]논문 로드[/] {papers_path}")
     papers_df = validate_papers(load_papers_from_parquet(papers_path))
     rprint(f"  → 검증 통과: {len(papers_df)}편")
-    # primary cs.CL 만 필터 — '카테고리 cs.CL 포함' 논문에 cs.LG/CR/econ 등이 섞이는 것 차단
-    primary_target = "cs.CL"
+    # primary 필터 — 다른 카테고리(cs.LG/CR/econ 등) 논문 차단
     before = len(papers_df)
-    papers_df = papers_df.filter(pl.col("primary_category") == primary_target)
+    papers_df = papers_df.filter(pl.col("primary_category") == primary_category)
     rprint(
-        f"  → primary={primary_target} 필터: {len(papers_df)}편 "
+        f"  → primary={primary_category} 필터: {len(papers_df)}편 "
         f"(제외 {before - len(papers_df)})"
     )
 
@@ -196,6 +198,7 @@ def build(
         whitespace_top=whitespace,
         embedding_model=f"{embedding_model}",
         categories=sorted(set(papers_df["primary_category"].to_list())),
+        primary_category=primary_category,
     )
     rprint(
         f"[green]✓[/] paper_count={manifest.paper_count} "
