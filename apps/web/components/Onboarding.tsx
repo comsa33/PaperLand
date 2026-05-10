@@ -8,10 +8,12 @@ import {
   Map as MapIcon,
   MousePointerClick,
 } from "lucide-react";
+import { useUIStore } from "@/lib/store";
 
 const STORAGE_KEY = "paperland.onboarding.collapsed";
 
 export function Onboarding() {
+  const locale = useUIStore((s) => s.locale);
   const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -39,7 +41,9 @@ export function Onboarding() {
           onClick={toggle}
           className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-white/90 hover:bg-white/5 transition"
         >
-          <span className="font-bold">시작 가이드</span>
+          <span className="font-bold">
+            {locale === "ko" ? "이 화면 가이드" : "About this view"}
+          </span>
           {collapsed ? (
             <ChevronDown className="w-4 h-4" />
           ) : (
@@ -49,19 +53,31 @@ export function Onboarding() {
         {!collapsed && (
           <div className="px-4 pb-4 pt-1 text-sm text-white/80 space-y-3 leading-relaxed">
             <Item
-              icon={<MapIcon className="w-4 h-4 text-blue-300" />}
-              title="중앙: 연구 지형도"
-              body="진한 파랑일수록 논문 많음. 영역 라벨로 어떤 분야인지 확인."
+              icon={<Compass className="w-4 h-4 text-orange-300" />}
+              title={locale === "ko" ? "선택한 후보의 위치" : "Position of this candidate"}
+              body={
+                locale === "ko"
+                  ? "주황 강조가 후보 셀입니다. 주변 진한 파랑은 활발한 인접 영역."
+                  : "Orange highlight is the candidate cell; surrounding dark blue is active neighborhood."
+              }
             />
             <Item
-              icon={<Compass className="w-4 h-4 text-orange-300" />}
-              title="좌측: 공백 후보 Top 10"
-              body="주변 활발 + 자기 비어있는 영역. 모드 토글로 지도에서 강조."
+              icon={<MapIcon className="w-4 h-4 text-blue-300" />}
+              title={locale === "ko" ? "지도에서 클릭" : "Click on the map"}
+              body={
+                locale === "ko"
+                  ? "다른 셀을 클릭하면 우측 패널에 그 셀의 키워드와 논문이 보입니다."
+                  : "Click any cell to inspect its keywords and papers in the right panel."
+              }
             />
             <Item
               icon={<MousePointerClick className="w-4 h-4 text-emerald-300" />}
-              title="우측: 상세 + 다음 행동"
-              body="셀/후보 클릭 → 인접 대표 논문 + Scholar 검색 링크."
+              title={locale === "ko" ? "흐름 탭으로 전환" : "Switch to the flow tab"}
+              body={
+                locale === "ko"
+                  ? "상단 「연도별 흐름 보기」를 누르면 인접 연구의 시간축 흐름이 펼쳐집니다."
+                  : 'Click "Year-by-year flow" at the top to expand the time-axis view of neighbors.'
+              }
             />
           </div>
         )}

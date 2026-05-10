@@ -132,6 +132,82 @@ def _dedup_roles(kws: list[str], roles: list[str]) -> tuple[list[str], list[str]
     return out_kws, out_roles
 
 
+def _compose_question_en(kws: list[str], roles: list[str]) -> str | None:
+    """역할 시퀀스 → 영문 연구 질문 (한국어 패턴과 1:1 대응)."""
+    if not kws:
+        return None
+    role_set = set(roles)
+
+    def quoted(k: str) -> str:
+        return f'"{k}"'
+
+    if {"model", "domain", "task"}.issubset(role_set):
+        m = next(k for k, r in zip(kws, roles) if r == "model")
+        d = next(k for k, r in zip(kws, roles) if r == "domain")
+        t = next(k for k, r in zip(kws, roles) if r == "task")
+        return (
+            f"While {quoted(m)} approaches are active in the {quoted(d)} area, "
+            f"directly tying them to {quoted(t)} is relatively under-studied."
+        )
+    if {"model", "domain"} == role_set or (
+        {"model", "domain"}.issubset(role_set) and "task" not in role_set
+    ):
+        m = next(k for k, r in zip(kws, roles) if r == "model")
+        d = next(k for k, r in zip(kws, roles) if r == "domain")
+        extras = [k for k, r in zip(kws, roles) if r not in {"model", "domain"}]
+        extra_clause = (
+            f" (incl. {', '.join(quoted(e) for e in extras)})" if extras else ""
+        )
+        return (
+            f"Direct combinations of {quoted(m)} with the {quoted(d)} area"
+            f"{extra_clause} are relatively under-studied."
+        )
+    if {"method", "domain"}.issubset(role_set):
+        meth = next(k for k, r in zip(kws, roles) if r == "method")
+        d = next(k for k, r in zip(kws, roles) if r == "domain")
+        return (
+            f"While {quoted(meth)} is active, applying it directly to the "
+            f"{quoted(d)} area is relatively under-studied."
+        )
+    if {"method", "task"}.issubset(role_set):
+        meth = next(k for k, r in zip(kws, roles) if r == "method")
+        t = next(k for k, r in zip(kws, roles) if r == "task")
+        return (
+            f"Tackling {quoted(t)} directly with {quoted(meth)} is "
+            f"relatively under-studied."
+        )
+    if {"domain", "task"}.issubset(role_set):
+        d = next(k for k, r in zip(kws, roles) if r == "domain")
+        t = next(k for k, r in zip(kws, roles) if r == "task")
+        return (
+            f"Tackling {quoted(t)} directly within the {quoted(d)} area is "
+            f"relatively under-studied."
+        )
+    if {"model", "task"}.issubset(role_set):
+        m = next(k for k, r in zip(kws, roles) if r == "model")
+        t = next(k for k, r in zip(kws, roles) if r == "task")
+        return (
+            f"Using {quoted(m)} to tackle {quoted(t)} directly is "
+            f"relatively under-studied."
+        )
+    if "model" in role_set and len(kws) >= 2:
+        m = next(k for k, r in zip(kws, roles) if r == "model")
+        others = [k for k, r in zip(kws, roles) if r != "model"]
+        if others:
+            others_phrase = ", ".join(quoted(o) for o in others[:2])
+            return (
+                f"Direct combinations of {quoted(m)} with {others_phrase} are "
+                f"relatively under-studied."
+            )
+    domain_kws = [k for k, r in zip(kws, roles) if r == "domain"]
+    if len(domain_kws) >= 2:
+        return (
+            f"Direct bridges between {quoted(domain_kws[0])} and "
+            f"{quoted(domain_kws[1])} are relatively under-studied."
+        )
+    return None
+
+
 def _compose_question(kws: list[str], roles: list[str]) -> str | None:
     """역할 시퀀스를 보고 연구 질문 문장을 합성. 매칭 실패 시 None."""
     if not kws:
@@ -343,8 +419,10 @@ class AdjacentGapDetector:
             nearest = self._collect_nearest_papers(
                 cand["cell_id"], cand["neighbor_cells"], cells_lookup, papers_by_cell
             )
-            summary = self._build_summary(neighbor_kws)
-            rationale = self._build_rationale(cand, neighbor_kws, neighbor_cats)
+            summary_ko, summary_en = self._build_summary_pair(neighbor_kws)
+            rationale_ko, rationale_en = self._build_rationale_pair(
+                cand, neighbor_kws, neighbor_cats
+            )
             lineage = self._build_lineage(nearest)
             enriched.append({
                 **cand,
@@ -353,8 +431,12 @@ class AdjacentGapDetector:
                 "neighbor_categories": neighbor_cats,
                 "nearest_papers": nearest[:12],
                 "lineage": lineage,
-                "summary": summary,
-                "rationale_template": rationale,
+                "summary": summary_ko,
+                "summary_ko": summary_ko,
+                "summary_en": summary_en,
+                "rationale_template": rationale_ko,
+                "rationale_ko": rationale_ko,
+                "rationale_en": rationale_en,
             })
 
         return pl.DataFrame(enriched)
@@ -437,60 +519,90 @@ class AdjacentGapDetector:
 
         - foundations: 인접 영역에서 가장 오래된 2편 (기반 연구)
         - active: 인접 영역에서 가장 최근 3편 (활발 인접 연구)
-        - bridge_text: 두 흐름 사이의 시간 격차에 대한 자연 문장
+        - bridge_text / bridge_text_ko / bridge_text_en: 시간 격차 해석 문장
         ※ 진짜 영향 관계(citation)가 아닌 정렬 기반 흐름. UI에서 "계보" 단정 표현 회피.
         """
+        empty = {
+            "foundations": [],
+            "active": [],
+            "bridge_text": "",
+            "bridge_text_ko": "",
+            "bridge_text_en": "",
+        }
         if not nearest_papers:
-            return {"foundations": [], "active": [], "bridge_text": ""}
+            return empty
         with_year = [p for p in nearest_papers if p.get("year") is not None]
         if not with_year:
+            ko = "이 후보 주변의 연구 흐름이 아직 충분히 잡히지 않았습니다."
+            en = "Surrounding research flow is not yet rich enough to chart."
             return {
                 "foundations": [],
                 "active": nearest_papers[:3],
-                "bridge_text": "이 후보 주변의 연구 흐름이 아직 충분히 잡히지 않았습니다.",
+                "bridge_text": ko,
+                "bridge_text_ko": ko,
+                "bridge_text_en": en,
             }
         sorted_by_year = sorted(with_year, key=lambda p: p["year"])
         foundations = sorted_by_year[:2]
         active = sorted(with_year, key=lambda p: -p["year"])[:3]
-        # 활발 연구가 기반과 시간상 격차가 있을 때만 bridge 메시지 강조
         years = [p["year"] for p in with_year]
         gap_years = max(years) - min(years) if years else 0
+        n_total = len(with_year)
         if gap_years >= 3:
-            bridge_text = (
+            ko = (
                 f"기반 연구({min(years)})와 최근 활발 연구({max(years)}) 사이 "
-                f"{gap_years}년의 흐름에서, 이 조합을 직접 잇는 논문이 적습니다."
+                f"{gap_years}년 동안 인접 영역 {n_total}편이 쌓였지만, "
+                f"이들을 직접 잇는 논문은 이 셀에서 거의 보이지 않습니다."
+            )
+            en = (
+                f"Across the {gap_years}-year span from foundations ({min(years)}) "
+                f"to recent active work ({max(years)}), {n_total} adjacent papers "
+                f"accumulate — yet papers directly connecting them are nearly "
+                f"absent in this cell."
             )
         else:
-            bridge_text = (
-                "비슷한 시기의 인접 연구들 사이에서 이 조합은 직접 다뤄지지 않았습니다."
+            ko = (
+                f"비슷한 시기({min(years)}–{max(years)})의 인접 연구 {n_total}편 "
+                f"사이에서, 이 조합을 직접 다룬 논문은 적습니다."
+            )
+            en = (
+                f"Among {n_total} contemporaneous adjacent papers "
+                f"({min(years)}–{max(years)}), direct combinations are scarce."
             )
         return {
             "foundations": foundations,
             "active": active,
-            "bridge_text": bridge_text,
+            "bridge_text": ko,
+            "bridge_text_ko": ko,
+            "bridge_text_en": en,
         }
 
-    @staticmethod
-    def _build_summary(neighbor_keywords: list[str]) -> str:
-        """키워드 조합을 '연구 질문 문장'으로 변환.
-
-        키워드를 method / domain / task 범주로 분류해 자연어 문장 생성.
-        예: ["large language", "knowledge graphs", "question answering"]
-        → "지식그래프 기반 LLM이 활발하지만, 이를 활용한 질문응답의
-           직접 결합 연구는 상대적으로 적습니다"
-
-        분류 실패 시 따옴표 명사구 fallback.
-        """
+    @classmethod
+    def _build_summary_pair(
+        cls, neighbor_keywords: list[str]
+    ) -> tuple[str, str]:
+        """(ko, en) 한국어/영어 연구 질문 문장 쌍 생성."""
         if not neighbor_keywords:
-            return "주변 분야 대비 직접 연구가 적은 영역입니다"
+            return (
+                "주변 분야 대비 직접 연구가 적은 영역입니다",
+                "An area with relatively few direct studies versus its surroundings.",
+            )
         kws_raw = neighbor_keywords[:5]
         roles_raw = [_classify_keyword(k) for k in kws_raw]
         kws, roles = _dedup_roles(kws_raw, roles_raw)
         kws, roles = kws[:3], roles[:3]
-        question = _compose_question(kws, roles)
-        if question:
-            return question
-        # fallback: 일반 패턴
+        ko = _compose_question(kws, roles) or cls._fallback_summary_ko(kws)
+        en = _compose_question_en(kws, roles) or cls._fallback_summary_en(kws)
+        return ko, en
+
+    @classmethod
+    def _build_summary(cls, neighbor_keywords: list[str]) -> str:
+        """단일 한국어 summary (backward compatibility)."""
+        ko, _ = cls._build_summary_pair(neighbor_keywords)
+        return ko
+
+    @staticmethod
+    def _fallback_summary_ko(kws: list[str]) -> str:
         if len(kws) == 1:
             return f'"{kws[0]}" 영역 주변은 활발하지만, 같은 영역의 직접 연구는 드뭅니다'
         if len(kws) == 2:
@@ -500,7 +612,24 @@ class AdjacentGapDetector:
             )
         return (
             f'"{kws[0]}", "{kws[1]}", "{kws[2]}" 사이를 직접 잇는 '
-            f'연구는 드뭅니다'
+            f"연구는 드뭅니다"
+        )
+
+    @staticmethod
+    def _fallback_summary_en(kws: list[str]) -> str:
+        if len(kws) == 1:
+            return (
+                f'Activity around "{kws[0]}" exists, but direct studies in the '
+                f"same area are sparse."
+            )
+        if len(kws) == 2:
+            return (
+                f'While "{kws[0]}" is active, direct combinations with '
+                f'"{kws[1]}" are relatively under-studied.'
+            )
+        return (
+            f'Direct bridges across "{kws[0]}", "{kws[1]}", "{kws[2]}" '
+            f"are relatively under-studied."
         )
 
     def _generate_candidate_cells(self, cells_df: pl.DataFrame) -> list[str]:
@@ -555,32 +684,52 @@ class AdjacentGapDetector:
                     counter[cat] += 1
         return [cat for cat, _ in counter.most_common(3)]
 
-    @staticmethod
-    def _build_rationale(
-        cand: dict, neighbor_keywords: list[str], neighbor_cats: list[str]
-    ) -> str:
-        """근거 템플릿 — '왜 이 빈틈이 연구 기회인가'를 한 문장으로 해석.
-
-        UX 원칙 준수: 단정 금지, 데이터 기준 명시.
-        """
+    @classmethod
+    def _build_rationale_pair(
+        cls,
+        cand: dict,
+        neighbor_keywords: list[str],
+        neighbor_cats: list[str],
+    ) -> tuple[str, str]:
+        """근거 템플릿 — (ko, en) 쌍."""
         kws = neighbor_keywords[:3]
         if len(kws) >= 2:
             kw_phrase = ", ".join(f'"{k}"' for k in kws)
-            topic_clause = (
+            ko_topic = (
                 f"이 영역 주변에는 {kw_phrase} 관련 논문군이 따로따로 활발하지만, "
                 f"이들을 직접 한 연구로 묶는 논문은 수집 데이터 기준 적습니다."
             )
+            en_topic = (
+                f"Papers around {kw_phrase} are individually active nearby, but "
+                f"works that directly combine them are scarce in the collected data."
+            )
         elif kws:
-            topic_clause = (
+            ko_topic = (
                 f'이 영역 주변에는 "{kws[0]}" 관련 논문이 활발하지만, '
                 f"같은 영역의 직접 연구는 수집 데이터 기준 적습니다."
             )
+            en_topic = (
+                f'Papers around "{kws[0]}" are active, but direct studies in the '
+                f"same area are scarce in the collected data."
+            )
         else:
-            topic_clause = "주변 영역에 비해 직접 논문이 적은 위치입니다."
-        density_clause = (
+            ko_topic = "주변 영역에 비해 직접 논문이 적은 위치입니다."
+            en_topic = "A spot with relatively few direct papers compared to its surroundings."
+        density_ko = (
             f" (이 셀 {cand['own_count']}편 vs 인접 셀 평균 {cand['neighbor_density']:.1f}편)"
         )
-        return topic_clause + density_clause
+        density_en = (
+            f" (this cell: {cand['own_count']} vs neighbor avg: {cand['neighbor_density']:.1f})"
+        )
+        return ko_topic + density_ko, en_topic + density_en
+
+    @classmethod
+    def _build_rationale(
+        cls, cand: dict, neighbor_keywords: list[str], neighbor_cats: list[str]
+    ) -> str:
+        """단일 ko (backward compatibility)."""
+        ko, _ = cls._build_rationale_pair(cand, neighbor_keywords, neighbor_cats)
+        return ko
 
     @staticmethod
     def _empty_result() -> pl.DataFrame:
@@ -608,8 +757,14 @@ class AdjacentGapDetector:
                         "id": pl.Utf8, "title": pl.Utf8, "year": pl.Int64,
                     })),
                     "bridge_text": pl.Utf8,
+                    "bridge_text_ko": pl.Utf8,
+                    "bridge_text_en": pl.Utf8,
                 }),
                 "summary": pl.Utf8,
+                "summary_ko": pl.Utf8,
+                "summary_en": pl.Utf8,
                 "rationale_template": pl.Utf8,
+                "rationale_ko": pl.Utf8,
+                "rationale_en": pl.Utf8,
             }
         )

@@ -53,12 +53,18 @@ export interface Lineage {
   foundations: LineagePaper[];
   active: LineagePaper[];
   bridge_text: string;
+  bridge_text_ko?: string;
+  bridge_text_en?: string;
 }
 
 export interface WhitespaceCandidate {
   cell_id: string;
   summary: string;
+  summary_ko?: string;
+  summary_en?: string;
   rationale: string;
+  rationale_ko?: string;
+  rationale_en?: string;
   score: number;
   detector: string;
   neighbor_keywords: string[];

@@ -97,6 +97,40 @@ export function bilingual(en: string): string {
   return ko ? `${en} / ${ko}` : en;
 }
 
+/* 후보 텍스트 locale 선택 — ko/en 필드가 있으면 우선, 없으면 기본 필드. */
+export function pickCandidateText(
+  c: {
+    summary?: string;
+    summary_ko?: string;
+    summary_en?: string;
+    rationale?: string;
+    rationale_ko?: string;
+    rationale_en?: string;
+  },
+  locale: "ko" | "en",
+  field: "summary" | "rationale"
+): string {
+  if (locale === "en") {
+    if (field === "summary") return c.summary_en || c.summary_ko || c.summary || "";
+    return c.rationale_en || c.rationale_ko || c.rationale || "";
+  }
+  if (field === "summary") return c.summary_ko || c.summary || "";
+  return c.rationale_ko || c.rationale || "";
+}
+
+export function pickBridgeText(
+  lineage:
+    | { bridge_text?: string; bridge_text_ko?: string; bridge_text_en?: string }
+    | undefined,
+  locale: "ko" | "en"
+): string {
+  if (!lineage) return "";
+  if (locale === "en") {
+    return lineage.bridge_text_en || lineage.bridge_text_ko || lineage.bridge_text || "";
+  }
+  return lineage.bridge_text_ko || lineage.bridge_text || "";
+}
+
 /* ───────────────────────────────────────────────────────────
  * UI 문구 리소스 — KO / EN 전환용
  * 키워드(영문 기술어)는 검색성을 위해 번역하지 않는다.
@@ -121,12 +155,28 @@ const STRINGS = {
     en: "Run the pipeline first to generate fixtures:",
   },
   candidatesHeading: {
-    ko: "공백 후보 Top 10",
-    en: "Whitespace candidates · Top 10",
+    ko: (n: number) => `검출된 공백 후보 ${n}개`,
+    en: (n: number) => `${n} whitespace candidate${n === 1 ? "" : "s"} detected`,
   },
   candidatesIntro: {
     ko: "주변은 활발한데 자기 셀만 비어있는 영역입니다. 이미 점유된 영토 사이의 빈틈이 가장 발견 가치 높은 후보입니다.",
     en: "Cells that are sparse themselves but surrounded by active neighbors. Gaps between occupied territories are the highest-value leads.",
+  },
+  todaysReview: {
+    ko: "오늘 검토할 연구 후보",
+    en: "Research candidates to review today",
+  },
+  reviewIntro: {
+    ko: "각 카드는 \"주변은 활발한데 직접 결합 연구가 적은\" 영역에서 합성된 연구 질문입니다. 카드를 클릭해 인접 흐름과 검증 링크를 확인하세요.",
+    en: 'Each card is a research question synthesised from areas where neighbors are active but direct combinations are scarce. Click a card to inspect adjacent flow and verification links.',
+  },
+  openDetail: { ko: "후보 자세히 보기", en: "Open detail" },
+  backToList: { ko: "← 후보 목록으로", en: "← Back to list" },
+  detailMapTab: { ko: "지도에서 위치 보기", en: "Show on map" },
+  detailFlowTab: { ko: "연도별 흐름 보기", en: "Year-by-year flow" },
+  detailSidebarHint: {
+    ko: "오른쪽 패널에 인접 논문 5편과 Scholar 검색 쿼리가 있습니다.",
+    en: "Right panel shows 5 nearest papers and Scholar verification queries.",
   },
   modeToggle: {
     ko: "공백 후보 모드 — 지도에서 강조",

@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { ExternalLink, GitBranch, Lightbulb, Search } from "lucide-react";
-import { translateKeyword } from "@/lib/i18n";
+import { pickBridgeText, pickCandidateText, translateKeyword } from "@/lib/i18n";
 import { useUIStore } from "@/lib/store";
 import type {
   Cell,
@@ -20,6 +20,7 @@ interface Props {
 export function SidePanel({ cells, papers, whitespace }: Props) {
   const selectedCellId = useUIStore((s) => s.selectedCellId);
   const selectedCandidate = useUIStore((s) => s.selectedCandidate);
+  const locale = useUIStore((s) => s.locale);
 
   const cell = useMemo(
     () => cells.find((c) => c.cell_id === selectedCellId) ?? null,
@@ -45,13 +46,19 @@ export function SidePanel({ cells, papers, whitespace }: Props) {
         <div className="p-5 space-y-5">
           <header>
             <p className="text-xs uppercase tracking-wider font-semibold text-orange-500">
-              {candidate ? "공백 후보 #" : "선택 영역"}
+              {candidate
+                ? locale === "ko"
+                  ? "공백 후보 #"
+                  : "Whitespace candidate #"
+                : locale === "ko"
+                  ? "선택 영역"
+                  : "Selected area"}
               {candidate && getCandidateRank(candidate, whitespace)}
             </p>
             <h3 className="text-lg font-bold leading-snug mt-1.5">
-              {candidate?.summary ||
+              {(candidate && pickCandidateText(candidate, locale, "summary")) ||
                 cell?.top_keywords.slice(0, 2).join(" · ") ||
-                "선택된 영역"}
+                (locale === "ko" ? "선택된 영역" : "Selected area")}
             </h3>
             {cell && (
               <p className="mt-2 text-sm text-[hsl(var(--foreground))]/70">
@@ -61,7 +68,7 @@ export function SidePanel({ cells, papers, whitespace }: Props) {
             )}
           </header>
 
-          {candidate && <CandidateBlock candidate={candidate} />}
+          {candidate && <CandidateBlock candidate={candidate} locale={locale} />}
 
           {cell && cell.top_keywords.length > 0 && !candidate && (
             <section>
@@ -140,7 +147,14 @@ function EmptyState() {
   );
 }
 
-function CandidateBlock({ candidate }: { candidate: WhitespaceCandidate }) {
+function CandidateBlock({
+  candidate,
+  locale,
+}: {
+  candidate: WhitespaceCandidate;
+  locale: "ko" | "en";
+}) {
+  const rationale = pickCandidateText(candidate, locale, "rationale");
   return (
     <section className="rounded-lg border border-orange-300/50 bg-orange-50/50 dark:bg-orange-950/25 p-4 space-y-4">
       <div className="flex gap-2.5 items-start">
@@ -171,7 +185,7 @@ function CandidateBlock({ candidate }: { candidate: WhitespaceCandidate }) {
 
       <div className="border-t border-orange-300/30 pt-4">
         <p className="text-sm leading-relaxed text-[hsl(var(--foreground))]/85">
-          {candidate.rationale}
+          {rationale}
         </p>
       </div>
 
@@ -201,7 +215,7 @@ function CandidateBlock({ candidate }: { candidate: WhitespaceCandidate }) {
         </div>
       )}
 
-      {candidate.lineage && <LineageBlock lineage={candidate.lineage} />}
+      {candidate.lineage && <LineageBlock lineage={candidate.lineage} locale={locale} />}
 
       {candidate.nearest_papers.length > 0 && (
         <div>
@@ -267,22 +281,29 @@ function CandidateBlock({ candidate }: { candidate: WhitespaceCandidate }) {
   );
 }
 
-function LineageBlock({ lineage }: { lineage: Lineage }) {
+function LineageBlock({
+  lineage,
+  locale,
+}: {
+  lineage: Lineage;
+  locale: "ko" | "en";
+}) {
   const hasFoundations = lineage.foundations?.length > 0;
   const hasActive = lineage.active?.length > 0;
   if (!hasFoundations && !hasActive) return null;
+  const bridge = pickBridgeText(lineage, locale);
   return (
     <div className="rounded-md border border-blue-300/30 bg-blue-50/40 dark:bg-blue-950/25 p-3 space-y-3">
       <div className="flex items-center gap-2">
         <GitBranch className="w-4 h-4 text-blue-500" />
         <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
-          연도별 인접 연구 흐름
+          {locale === "ko" ? "연도별 인접 연구 흐름" : "Adjacent research flow by year"}
         </p>
       </div>
       {hasFoundations && (
         <div>
           <p className="text-xs font-semibold text-[hsl(var(--foreground))]/65 mb-1">
-            기반 연구
+            {locale === "ko" ? "기반 연구" : "Foundations"}
           </p>
           <ul className="space-y-1">
             {lineage.foundations.map((p) => (
@@ -299,15 +320,15 @@ function LineageBlock({ lineage }: { lineage: Lineage }) {
           </ul>
         </div>
       )}
-      {lineage.bridge_text && (
+      {bridge && (
         <div className="px-3 py-2 rounded bg-orange-100/50 dark:bg-orange-950/30 text-sm text-orange-700 dark:text-orange-200 leading-relaxed">
-          ↓ {lineage.bridge_text} ↓
+          ↓ {bridge} ↓
         </div>
       )}
       {hasActive && (
         <div>
           <p className="text-xs font-semibold text-[hsl(var(--foreground))]/65 mb-1">
-            최근 활발한 인접 연구
+            {locale === "ko" ? "최근 활발한 인접 연구" : "Recent active neighbors"}
           </p>
           <ul className="space-y-1">
             {lineage.active.map((p) => (
@@ -325,7 +346,9 @@ function LineageBlock({ lineage }: { lineage: Lineage }) {
         </div>
       )}
       <p className="text-xs text-[hsl(var(--foreground))]/55 italic">
-        ※ citation 기반 영향 관계가 아니라, 같은 임베딩 영역의 연도·인접도로 정렬한 흐름입니다.
+        {locale === "ko"
+          ? "※ citation 기반 영향 관계가 아니라, 같은 임베딩 영역의 연도·인접도로 정렬한 흐름입니다."
+          : "* Not a citation-based influence graph; an ordering by year + embedding adjacency."}
       </p>
     </div>
   );

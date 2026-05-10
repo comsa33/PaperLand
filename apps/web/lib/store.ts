@@ -4,7 +4,7 @@ import { create } from "zustand";
 import type { WhitespaceCandidate } from "./types";
 
 export type Locale = "ko" | "en";
-export type ViewMode = "map" | "lineage";
+export type ViewMode = "list" | "map" | "lineage";
 
 const LOCALE_KEY = "paperland.locale";
 
@@ -32,7 +32,7 @@ export const useUIStore = create<UIState>((set) => ({
   selectedCellId: null,
   selectedCandidate: null,
   locale: "ko",
-  viewMode: "map",
+  viewMode: "list",
   setWhitespaceMode: (on) => set({ whitespaceMode: on }),
   selectCell: (id) => set({ selectedCellId: id, selectedCandidate: null }),
   selectCandidate: (c) =>

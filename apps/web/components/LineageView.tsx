@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { pickBridgeText, pickCandidateText } from "@/lib/i18n";
 import { useUIStore } from "@/lib/store";
 import type { WhitespaceCandidate } from "@/lib/types";
 
@@ -44,6 +45,7 @@ const WEAK_KEYWORDS = new Set([
 export function LineageView({ candidates }: Props) {
   const selectedCandidate = useUIStore((s) => s.selectedCandidate);
   const selectCandidate = useUIStore((s) => s.selectCandidate);
+  const locale = useUIStore((s) => s.locale);
   const candidate =
     selectedCandidate ?? (candidates.length > 0 ? candidates[0] : null);
 
@@ -51,7 +53,9 @@ export function LineageView({ candidates }: Props) {
     return (
       <div className="absolute inset-0 flex items-center justify-center text-[hsl(var(--foreground))]/65">
         <p className="text-base">
-          좌측 지도 모드에서 공백 후보를 선택한 뒤 다시 들어와 보세요.
+          {locale === "ko"
+            ? "후보 목록에서 공백 후보를 선택한 뒤 다시 들어와 보세요."
+            : "Pick a whitespace candidate from the list and try again."}
         </p>
       </div>
     );
@@ -60,34 +64,42 @@ export function LineageView({ candidates }: Props) {
   return (
     <div className="absolute inset-0 overflow-y-auto bg-[hsl(var(--background))]">
       <div className="max-w-6xl mx-auto px-6 py-5 space-y-4">
-        <Header candidate={candidate} />
+        <Header candidate={candidate} locale={locale} />
         <CandidateTabs
           candidates={candidates}
           selectedId={candidate.cell_id}
           onPick={selectCandidate}
+          locale={locale}
         />
-        <FlowGraph candidate={candidate} />
+        <FlowGraph candidate={candidate} locale={locale} />
       </div>
     </div>
   );
 }
 
-function Header({ candidate }: { candidate: WhitespaceCandidate }) {
+function Header({
+  candidate,
+  locale,
+}: {
+  candidate: WhitespaceCandidate;
+  locale: "ko" | "en";
+}) {
   const flowLabels = useMemo(() => pickFlowLabels(candidate), [candidate]);
-  const sentence = buildOneLineSentence(flowLabels);
+  const sentence = buildOneLineSentence(flowLabels, locale);
+  const rationale = pickCandidateText(candidate, locale, "rationale");
   return (
     <header className="space-y-2">
       <p className="text-xs uppercase tracking-wider font-bold text-orange-500">
-        연구 흐름 보기
+        {locale === "ko" ? "연구 흐름 보기" : "Research flow"}
       </p>
-      <h2 className="text-xl font-bold leading-snug">
-        {sentence}
-      </h2>
+      <h2 className="text-xl font-bold leading-snug">{sentence}</h2>
       <p className="text-sm text-[hsl(var(--foreground))]/65 leading-relaxed">
-        {candidate.rationale}
+        {rationale}
       </p>
       <p className="text-xs text-[hsl(var(--foreground))]/55 italic">
-        ※ 연결선은 citation 영향 관계가 아니라, 임베딩 영역의 semantic adjacency 입니다.
+        {locale === "ko"
+          ? "※ 연결선은 citation 영향 관계가 아니라, 임베딩 영역의 semantic adjacency 입니다."
+          : "* Edges are not citation-based influence; they reflect semantic adjacency in embedding space."}
       </p>
     </header>
   );
@@ -97,18 +109,24 @@ function CandidateTabs({
   candidates,
   selectedId,
   onPick,
+  locale,
 }: {
   candidates: WhitespaceCandidate[];
   selectedId: string;
   onPick: (c: WhitespaceCandidate) => void;
+  locale: "ko" | "en";
 }) {
   if (candidates.length <= 1) return null;
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      <span className="text-[hsl(var(--foreground))]/55">다른 후보로 보기 ·</span>
+      <span className="text-[hsl(var(--foreground))]/55">
+        {locale === "ko" ? "다른 후보로 보기 ·" : "Other candidates ·"}
+      </span>
       {candidates.map((c, i) => {
         const active = c.cell_id === selectedId;
-        const labels = pickFlowLabels(c).slice(0, 2).join(" × ") || "후보";
+        const labels =
+          pickFlowLabels(c).slice(0, 2).join(" × ") ||
+          (locale === "ko" ? "후보" : "Candidate");
         return (
           <button
             key={c.cell_id}
@@ -128,7 +146,13 @@ function CandidateTabs({
   );
 }
 
-function FlowGraph({ candidate }: { candidate: WhitespaceCandidate }) {
+function FlowGraph({
+  candidate,
+  locale,
+}: {
+  candidate: WhitespaceCandidate;
+  locale: "ko" | "en";
+}) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -154,7 +178,9 @@ function FlowGraph({ candidate }: { candidate: WhitespaceCandidate }) {
     <div ref={wrapRef} className="w-full">
       {flows.length === 0 || years.length === 0 ? (
         <div className="text-sm text-[hsl(var(--foreground))]/65 p-8 text-center border border-dashed border-[hsl(var(--border))] rounded-lg">
-          이 후보는 연도 정보가 충분하지 않아 흐름을 그릴 수 없습니다.
+          {locale === "ko"
+            ? "이 후보는 연도 정보가 충분하지 않아 흐름을 그릴 수 없습니다."
+            : "This candidate has insufficient year info to render a flow."}
         </div>
       ) : (
         <div
@@ -273,17 +299,18 @@ function FlowGraph({ candidate }: { candidate: WhitespaceCandidate }) {
           <BridgeNode
             cx={layout.bridgeX}
             cy={layout.bridgeY}
-            summary={candidate.summary}
+            summary={pickCandidateText(candidate, locale, "summary")}
+            locale={locale}
           />
         </div>
       )}
 
       {/* 범례 */}
-      <Legend flows={flows} />
+      <Legend flows={flows} locale={locale} />
 
       {/* 왜 빈틈인가 — 해석 블록 */}
       {flows.length >= 2 && (
-        <Interpretation candidate={candidate} flows={flows} />
+        <Interpretation candidate={candidate} flows={flows} locale={locale} />
       )}
     </div>
   );
@@ -292,12 +319,14 @@ function FlowGraph({ candidate }: { candidate: WhitespaceCandidate }) {
 function Interpretation({
   candidate,
   flows,
+  locale,
 }: {
   candidate: WhitespaceCandidate;
   flows: Flow[];
+  locale: "ko" | "en";
 }) {
-  const flowA = flows[0]?.label ?? "흐름 A";
-  const flowB = flows[1]?.label ?? "흐름 B";
+  const flowA = flows[0]?.label ?? (locale === "ko" ? "흐름 A" : "Flow A");
+  const flowB = flows[1]?.label ?? (locale === "ko" ? "흐름 B" : "Flow B");
   const yearsA = flows[0]?.nodes.map((n) => n.year) ?? [];
   const yearsB = flows[1]?.nodes.map((n) => n.year) ?? [];
   const spanA = yearsA.length
@@ -306,25 +335,48 @@ function Interpretation({
   const spanB = yearsB.length
     ? `${Math.min(...yearsB)}–${Math.max(...yearsB)}`
     : "—";
+  const bridge = pickBridgeText(candidate.lineage, locale);
   return (
     <div className="mt-4 p-4 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
       <p className="text-xs font-bold text-[hsl(var(--foreground))]/70 uppercase tracking-wider mb-2">
-        왜 이 흐름 사이가 빈틈인가
+        {locale === "ko" ? "왜 이 흐름 사이가 빈틈인가" : "Why this is a gap"}
       </p>
       <ul className="text-sm leading-relaxed text-[hsl(var(--foreground))]/85 space-y-1.5">
+        {bridge && <li>· {bridge}</li>}
         <li>
-          · &quot;{flowA}&quot; 흐름은 {spanA} 사이에 {yearsA.length}편의 인접
-          논문이 있고, &quot;{flowB}&quot; 흐름은 {spanB} 사이에 {yearsB.length}
-          편이 있습니다.
+          {locale === "ko" ? (
+            <>
+              · &quot;{flowA}&quot; 흐름은 {spanA}에 {yearsA.length}편, &quot;
+              {flowB}&quot; 흐름은 {spanB}에 {yearsB.length}편이 인접 영역에서
+              관찰됩니다.
+            </>
+          ) : (
+            <>
+              · The &quot;{flowA}&quot; flow has {yearsA.length} adjacent papers
+              spanning {spanA}; the &quot;{flowB}&quot; flow has {yearsB.length}{" "}
+              spanning {spanB}.
+            </>
+          )}
         </li>
         <li>
-          · 같은 시기를 지나면서도 두 흐름을 직접 묶은 논문은 이 셀 기준{" "}
-          {candidate.own_count}편(이웃 평균은 {candidate.neighbor_density.toFixed(1)}편).
+          {locale === "ko" ? (
+            <>
+              · 같은 시기를 지나면서도 두 흐름을 직접 묶은 논문은 이 셀 기준{" "}
+              {candidate.own_count}편 (이웃 평균은{" "}
+              {candidate.neighbor_density.toFixed(1)}편).
+            </>
+          ) : (
+            <>
+              · Despite the overlapping period, only {candidate.own_count}{" "}
+              paper(s) in this cell directly combine the two flows (neighbor avg{" "}
+              {candidate.neighbor_density.toFixed(1)}).
+            </>
+          )}
         </li>
         <li>
-          · 만약 위 흐름 노드들 중 어느 한 페어를 직접 연결하는 시도를 한다면,
-          현재 데이터에서 직접 결합 사례가 적어 novelty 방어가 비교적 수월할
-          가능성이 있습니다 (※ 실제 검증은 Scholar 검색 필요).
+          {locale === "ko"
+            ? "· 위 흐름 노드 중 어느 페어를 직접 연결하는 시도를 한다면, 현재 데이터 기준 직접 결합 사례가 적어 novelty 방어가 상대적으로 수월할 가능성이 있습니다 (※ 실제 검증은 Scholar 검색 필요)."
+            : "· Bridging any pair of the above flow nodes directly would face few prior combinations in the collected data, so novelty arguments may hold up better (* always verify on Scholar)."}
         </li>
       </ul>
     </div>
@@ -384,10 +436,12 @@ function BridgeNode({
   cx,
   cy,
   summary,
+  locale,
 }: {
   cx: number;
   cy: number;
   summary: string;
+  locale: "ko" | "en";
 }) {
   const w = 320;
   const h = 110;
@@ -403,7 +457,7 @@ function BridgeNode({
       }}
     >
       <p className="text-[11px] font-bold text-orange-600 dark:text-orange-300 uppercase tracking-wider">
-        비어 있는 결합 후보
+        {locale === "ko" ? "비어 있는 결합 후보" : "Empty combination"}
       </p>
       <p className="mt-1.5 text-[13px] leading-snug font-semibold text-orange-900 dark:text-orange-200">
         {summary}
@@ -412,7 +466,7 @@ function BridgeNode({
   );
 }
 
-function Legend({ flows }: { flows: Flow[] }) {
+function Legend({ flows, locale }: { flows: Flow[]; locale: "ko" | "en" }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-[hsl(var(--foreground))]/75">
       {flows.map((f) => (
@@ -429,7 +483,7 @@ function Legend({ flows }: { flows: Flow[] }) {
           className="inline-block w-3 h-3 rounded-full border-2"
           style={{ borderStyle: "dashed", borderColor: "#f59e0b", background: "#fff7ed" }}
         />
-        비어 있는 결합 후보
+        {locale === "ko" ? "비어 있는 결합 후보" : "Empty combination"}
       </span>
     </div>
   );
@@ -452,7 +506,16 @@ function pickFlowLabels(candidate: WhitespaceCandidate): string[] {
   return labels;
 }
 
-function buildOneLineSentence(labels: string[]): string {
+function buildOneLineSentence(labels: string[], locale: "ko" | "en"): string {
+  if (locale === "en") {
+    if (labels.length >= 2) {
+      return `Few papers directly bridge the "${labels[0]}" flow and the "${labels[1]}" flow in this area.`;
+    }
+    if (labels.length === 1) {
+      return `Few papers directly study around "${labels[0]}" in this area.`;
+    }
+    return "Few papers directly bridge the surrounding flows in this area.";
+  }
   if (labels.length >= 2) {
     return `이 후보는 "${labels[0]}" 흐름과 "${labels[1]}" 흐름 사이에 아직 직접 연결 논문이 적은 영역입니다.`;
   }

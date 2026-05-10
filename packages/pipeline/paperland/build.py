@@ -104,12 +104,27 @@ def build_artifacts(
     for row in whitespace_top.to_dicts():
         neighbor_kws = row.get("neighbor_keywords") or []
         lineage = row.get("lineage") or {
-            "foundations": [], "active": [], "bridge_text": ""
+            "foundations": [],
+            "active": [],
+            "bridge_text": "",
+            "bridge_text_ko": "",
+            "bridge_text_en": "",
         }
+        # 호환: 구버전 lineage에 ko/en 누락 시 보강
+        lineage.setdefault("bridge_text_ko", lineage.get("bridge_text", ""))
+        lineage.setdefault("bridge_text_en", "")
+        summary_ko = row.get("summary_ko") or row.get("summary") or ""
+        summary_en = row.get("summary_en") or ""
+        rationale_ko = row.get("rationale_ko") or row.get("rationale_template") or ""
+        rationale_en = row.get("rationale_en") or ""
         ws_payload.append({
             "cell_id": row["cell_id"],
-            "summary": row.get("summary") or "",
-            "rationale": row["rationale_template"],
+            "summary": summary_ko,
+            "summary_ko": summary_ko,
+            "summary_en": summary_en,
+            "rationale": rationale_ko,
+            "rationale_ko": rationale_ko,
+            "rationale_en": rationale_en,
             "score": float(row["score"]),
             "detector": row["detector"],
             "neighbor_keywords": neighbor_kws,
