@@ -256,13 +256,13 @@ function NearbyPapers({
           {visible.map((p) => (
             <li
               key={p.id}
-              className="text-sm leading-snug p-2.5 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
+              className="text-sm leading-snug p-2.5 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] hover:border-blue-400/60 transition"
             >
               <a
-                href={`https://scholar.google.com/scholar?q=${encodeURIComponent(p.title)}`}
+                href={`https://arxiv.org/abs/${p.id}`}
                 target="_blank"
                 rel="noreferrer"
-                className="block hover:text-blue-600 dark:hover:text-blue-300 transition"
+                className="block hover:text-blue-600 dark:hover:text-blue-300"
               >
                 <p className="line-clamp-2 font-medium">{p.title}</p>
                 <p className="mt-1 text-xs text-[hsl(var(--foreground))]/55 font-mono">

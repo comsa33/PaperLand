@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { CandidateGrid } from "@/components/CandidateGrid";
 import { LineageView } from "@/components/LineageView";
 import { Map } from "@/components/Map";
-import { Onboarding } from "@/components/Onboarding";
 import { SidePanel } from "@/components/SidePanel";
 import {
   type Catalog,
@@ -223,7 +222,6 @@ make web`}
                 whitespace={data.whitespace}
                 clusters={data.clusters}
               />
-              <Onboarding />
             </div>
             <SidePanel
               cells={data.cells}

@@ -29,7 +29,6 @@ interface RegionLabel {
 }
 
 export function Map({ cells, papers, whitespace, clusters }: MapProps) {
-  const whitespaceMode = useUIStore((s) => s.whitespaceMode);
   const selectedCellId = useUIStore((s) => s.selectedCellId);
   const selectCell = useUIStore((s) => s.selectCell);
   const locale = useUIStore((s) => s.locale);
@@ -110,11 +109,8 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
       getFillColor: (d) => {
         const isWS = whitespaceCellIds.has(d.cell_id);
         const isSelected = selectedCellId === d.cell_id;
-        if (whitespaceMode) {
-          if (isWS) {
-            return isSelected ? [255, 180, 50, 240] : [255, 140, 0, 210];
-          }
-          return [60, 60, 70, 50];
+        if (isWS) {
+          return isSelected ? [255, 180, 50, 240] : [255, 140, 0, 210];
         }
         const intensity = Math.min(1, d.paper_count / maxCount);
         const r = Math.floor(40 + (1 - intensity) * 80);
@@ -131,7 +127,7 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
         selectCell(cell?.cell_id ?? null);
       },
       updateTriggers: {
-        getFillColor: [whitespaceMode, selectedCellId, whitespaceCellIds],
+        getFillColor: [selectedCellId, whitespaceCellIds],
         getLineColor: [whitespaceCellIds],
       },
     });
@@ -143,9 +139,8 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
       getRadius: 3000,
       radiusMinPixels: 1,
       radiusMaxPixels: 3,
-      getFillColor: [255, 255, 255, whitespaceMode ? 80 : 160],
+      getFillColor: [255, 255, 255, 160],
       pickable: false,
-      updateTriggers: { getFillColor: [whitespaceMode] },
     });
 
     const labelLayer = new TextLayer<RegionLabel>({
@@ -177,7 +172,6 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
     cells,
     papers,
     regionLabels,
-    whitespaceMode,
     selectedCellId,
     whitespaceCellIds,
     selectCell,
@@ -223,8 +217,8 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
           return null;
         }}
       />
-      <MapLegend
-        whitespaceMode={whitespaceMode}
+      <VisualFormula locale={locale} />
+      <MapStats
         cellCount={cells.length}
         paperCount={papers.length}
         locale={locale}
@@ -233,50 +227,83 @@ export function Map({ cells, papers, whitespace, clusters }: MapProps) {
   );
 }
 
-function MapLegend({
-  whitespaceMode,
+/**
+ * 지도 상단 시각 공식 — 한 줄로 의미를 즉시 읽히게 한다.
+ * 카피("점 = 논문, 가까움 = 의미 유사 …")보다 시각 칩이 먼저 들어오는 구조.
+ */
+function VisualFormula({ locale }: { locale: "ko" | "en" }) {
+  return (
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-slate-900/85 backdrop-blur border border-white/10 rounded-full px-3 py-1.5 shadow-lg flex items-center gap-2 text-[12px] text-white/85 whitespace-nowrap pointer-events-none">
+      <Chip
+        glyph={
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-white/95" />
+        }
+        label={locale === "ko" ? "점 = 논문" : "dot = paper"}
+      />
+      <Sep />
+      <Chip
+        glyph={
+          <span className="inline-flex items-center text-white/95">↔</span>
+        }
+        label={locale === "ko" ? "가까움 = 의미 유사" : "near = similar"}
+      />
+      <Sep />
+      <Chip
+        glyph={<HexChip color="#1e40af" />}
+        label={locale === "ko" ? "진함 = 많음" : "darker = denser"}
+      />
+      <Sep />
+      <Chip
+        glyph={<HexChip color="#f97316" outline />}
+        label={locale === "ko" ? "주황 = 공백 후보" : "orange = whitespace"}
+      />
+    </div>
+  );
+}
+
+function Chip({ glyph, label }: { glyph: React.ReactNode; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 font-medium">
+      {glyph}
+      <span>{label}</span>
+    </span>
+  );
+}
+
+function Sep() {
+  return <span className="text-white/30">·</span>;
+}
+
+function HexChip({ color, outline }: { color: string; outline?: boolean }) {
+  return (
+    <svg width="14" height="13" viewBox="0 0 14 13" className="shrink-0">
+      <polygon
+        points="3.5,0.7 10.5,0.7 13.3,6.5 10.5,12.3 3.5,12.3 0.7,6.5"
+        fill={color}
+        opacity={0.9}
+        stroke={outline ? "rgba(249,115,22,1)" : "rgba(255,255,255,0.3)"}
+        strokeWidth={outline ? 1.4 : 0.6}
+      />
+    </svg>
+  );
+}
+
+function MapStats({
   cellCount,
   paperCount,
   locale,
 }: {
-  whitespaceMode: boolean;
   cellCount: number;
   paperCount: number;
   locale: "ko" | "en";
 }) {
-  const occupied =
-    locale === "ko" ? "점유 영역 (진할수록 논문 많음)" : "Occupied area (denser = more papers)";
-  const whitespaceLabel =
+  const text =
     locale === "ko"
-      ? `공백 후보 (${whitespaceMode ? "강조 중" : "모드 OFF"})`
-      : `Whitespace (${whitespaceMode ? "highlighted" : "mode off"})`;
-  const dot = locale === "ko" ? "개별 논문 점" : "Individual paper";
-  const summary =
-    locale === "ko"
-      ? `셀 ${cellCount} · 논문 ${paperCount}편 · 클릭으로 상세`
-      : `${cellCount} cells · ${paperCount} papers · click to inspect`;
-  const meaning =
-    locale === "ko"
-      ? "점 1개 = 논문 1편. 가까울수록 제목·초록 의미가 비슷합니다 (SPECTER2 → UMAP 2D)."
-      : "Each dot = 1 paper. Closer = semantically similar by title/abstract (SPECTER2 → UMAP 2D).";
+      ? `셀 ${cellCount} · 논문 ${paperCount}편 · 클릭으로 상세 · SPECTER2 → UMAP`
+      : `${cellCount} cells · ${paperCount} papers · click to inspect · SPECTER2 → UMAP`;
   return (
-    <div className="absolute bottom-5 left-5 z-10 bg-slate-900/90 backdrop-blur border border-white/10 rounded-md px-4 py-3 text-sm text-white/85 space-y-2 shadow-lg pointer-events-none max-w-[26rem]">
-      <div className="flex items-center gap-2.5">
-        <div className="w-4 h-4 rounded-sm bg-blue-500" />
-        <span>{occupied}</span>
-      </div>
-      <div className="flex items-center gap-2.5">
-        <div className="w-4 h-4 rounded-sm bg-orange-500" />
-        <span>{whitespaceLabel}</span>
-      </div>
-      <div className="flex items-center gap-2.5">
-        <div className="w-2.5 h-2.5 rounded-full bg-white" />
-        <span>{dot}</span>
-      </div>
-      <div className="pt-1.5 mt-1.5 border-t border-white/15 text-xs text-white/60 leading-relaxed">
-        {meaning}
-      </div>
-      <div className="text-xs text-white/55 font-mono">{summary}</div>
+    <div className="absolute bottom-4 left-4 z-10 bg-slate-900/70 backdrop-blur border border-white/10 rounded-md px-3 py-1.5 text-[11px] text-white/55 font-mono pointer-events-none">
+      {text}
     </div>
   );
 }

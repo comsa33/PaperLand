@@ -22,13 +22,11 @@ function loadCategory(): string {
 }
 
 interface UIState {
-  whitespaceMode: boolean;
   selectedCellId: string | null;
   selectedCandidate: WhitespaceCandidate | null;
   locale: Locale;
   viewMode: ViewMode;
   category: string;
-  setWhitespaceMode: (on: boolean) => void;
   selectCell: (id: string | null) => void;
   selectCandidate: (c: WhitespaceCandidate | null) => void;
   setLocale: (l: Locale) => void;
@@ -37,13 +35,11 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  whitespaceMode: false,
   selectedCellId: null,
   selectedCandidate: null,
   locale: "ko",
   viewMode: "list",
   category: DEFAULT_CATEGORY,
-  setWhitespaceMode: (on) => set({ whitespaceMode: on }),
   selectCell: (id) => set({ selectedCellId: id, selectedCandidate: null }),
   selectCandidate: (c) =>
     set({ selectedCandidate: c, selectedCellId: c?.cell_id ?? null }),

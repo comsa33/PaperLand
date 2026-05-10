@@ -114,13 +114,21 @@ export function SidePanel({ cells, papers, whitespace }: Props) {
                   (p) => (
                     <li
                       key={p.id}
-                      className="text-sm leading-relaxed p-3 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
+                      className="text-sm leading-relaxed p-3 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] hover:border-blue-400/60 transition"
                     >
-                      <p className="font-medium">{p.title}</p>
-                      <p className="mt-1 text-xs text-[hsl(var(--foreground))]/55 font-mono">
-                        {p.id}
-                        {p.year && ` · ${p.year}`}
-                      </p>
+                      <a
+                        href={`https://arxiv.org/abs/${p.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block hover:text-blue-600 dark:hover:text-blue-300"
+                      >
+                        <p className="font-medium">{p.title}</p>
+                        <p className="mt-1 text-xs text-[hsl(var(--foreground))]/55 font-mono inline-flex items-center gap-1">
+                          {p.id}
+                          {p.year && ` · ${p.year}`}
+                          <ExternalLink className="w-3 h-3 opacity-60" />
+                        </p>
+                      </a>
                     </li>
                   )
                 )}
@@ -262,17 +270,34 @@ function CandidateBlock({
                 key={p.id}
                 className="text-sm leading-snug p-3 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]"
               >
-                <p className="font-medium">{p.title}</p>
                 <a
-                  href={`https://scholar.google.com/scholar?q=${encodeURIComponent(p.title)}`}
+                  href={`https://arxiv.org/abs/${p.id}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-1.5 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-300 hover:underline"
+                  className="font-medium hover:text-blue-600 dark:hover:text-blue-300"
                 >
-                  <Search className="w-3.5 h-3.5" />
-                  {ui.scholarFind[locale]}
-                  <ExternalLink className="w-3 h-3 opacity-60" />
+                  {p.title}
                 </a>
+                <div className="mt-1.5 flex items-center gap-3 text-xs">
+                  <a
+                    href={`https://arxiv.org/abs/${p.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[hsl(var(--foreground))]/65 hover:text-blue-600 dark:hover:text-blue-300"
+                  >
+                    <span className="font-mono">{p.id}</span>
+                    <ExternalLink className="w-3 h-3 opacity-60" />
+                  </a>
+                  <a
+                    href={`https://scholar.google.com/scholar?q=${encodeURIComponent(p.title)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-300 hover:underline"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    {ui.scholarFind[locale]}
+                  </a>
+                </div>
               </li>
             ))}
           </ul>
