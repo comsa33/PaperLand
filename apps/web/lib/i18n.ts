@@ -96,3 +96,155 @@ export function bilingual(en: string): string {
   const ko = translateKeyword(en);
   return ko ? `${en} / ${ko}` : en;
 }
+
+/* ───────────────────────────────────────────────────────────
+ * UI 문구 리소스 — KO / EN 전환용
+ * 키워드(영문 기술어)는 검색성을 위해 번역하지 않는다.
+ * ─────────────────────────────────────────────────────────── */
+
+export type Locale = "ko" | "en";
+
+const STRINGS = {
+  appTitle: { ko: "PaperLand", en: "PaperLand" },
+  appSubtitle: {
+    ko: "arXiv cs.CL 연구 지형도 — 공백 후보 탐지기",
+    en: "arXiv cs.CL research landscape — Whitespace detector",
+  },
+  fixtureBadge: {
+    ko: "⚠️ 샘플 데모 — 실제 arXiv 지형 아님",
+    en: "⚠️ Synthetic demo — not real arXiv landscape",
+  },
+  loading: { ko: "지도 로드 중…", en: "Loading map…" },
+  loadFail: { ko: "데이터 로드 실패", en: "Failed to load data" },
+  loadHint: {
+    ko: "먼저 파이프라인을 실행해 픽스처를 생성하세요:",
+    en: "Run the pipeline first to generate fixtures:",
+  },
+  candidatesHeading: {
+    ko: "공백 후보 Top 10",
+    en: "Whitespace candidates · Top 10",
+  },
+  candidatesIntro: {
+    ko: "주변은 활발한데 자기 셀만 비어있는 영역입니다. 이미 점유된 영토 사이의 빈틈이 가장 발견 가치 높은 후보입니다.",
+    en: "Cells that are sparse themselves but surrounded by active neighbors. Gaps between occupied territories are the highest-value leads.",
+  },
+  modeToggle: {
+    ko: "공백 후보 모드 — 지도에서 강조",
+    en: "Whitespace mode — highlight candidates",
+  },
+  noCandidates: { ko: "후보 없음", en: "No candidates" },
+  scoreLabel: { ko: "근거", en: "score" },
+  neighborVsSelf: {
+    ko: (n: string, o: number) => `이웃 ~${n}편 vs 자기 ${o}편`,
+    en: (n: string, o: number) => `neighbors ~${n} vs self ${o}`,
+  },
+  examplePrefix: { ko: "예: ", en: "e.g. " },
+  whatToDoTitle: { ko: "그래서 뭘 하면 되나", en: "What to do next" },
+  whatToDoBody: {
+    ko: "아래 인접 영역의 대표 논문 5편을 먼저 살펴보고, 같은 키워드 조합이 실제로 비어있는지 Scholar 검색 쿼리로 확인하세요. 진짜 공백이라면 연구 주제 후보로 검토할 가치가 있습니다.",
+    en: "Skim the 5 representative neighbor papers below, then verify with the Scholar queries to confirm the gap is real. If it is, this is a candidate worth investigating as a research topic.",
+  },
+  candidateHeader: { ko: "공백 후보 #", en: "Whitespace candidate #" },
+  selectedCellHeader: { ko: "선택 영역", en: "Selected cell" },
+  papersInCell: {
+    ko: "이 셀의 논문",
+    en: "Papers in this cell",
+  },
+  representativeKw: {
+    ko: "대표 키워드",
+    en: "Representative keywords",
+  },
+  neighborKw: {
+    ko: "주변 키워드 (영문 / 한글 병기)",
+    en: "Neighbor keywords (EN only)",
+  },
+  neighborPapers: {
+    ko: "인접 영역의 대표 논문",
+    en: "Representative neighbor papers",
+  },
+  scholarFind: { ko: "Scholar에서 찾기", en: "Find on Scholar" },
+  searchQueries: {
+    ko: "이 공백을 직접 확인하는 검색 쿼리",
+    en: "Search queries to verify this gap",
+  },
+  evidenceStrength: { ko: "근거 강도", en: "Evidence strength" },
+  candidateDisclaimer: {
+    ko: "※ 수집 데이터 기준 저밀도 후보. 실제 연구 가치는 위 검색 링크로 직접 확인이 필요합니다.",
+    en: "* A low-density candidate based on collected data. Verify actual research value via the search links above.",
+  },
+  lineageTitle: {
+    ko: "연도별 인접 연구 흐름",
+    en: "Adjacent research flow by year",
+  },
+  foundationsLabel: { ko: "기반 연구", en: "Foundations" },
+  activeLabel: {
+    ko: "최근 활발한 인접 연구",
+    en: "Recent active neighbors",
+  },
+  lineageDisclaimer: {
+    ko: "※ citation 기반 영향 관계가 아니라, 같은 임베딩 영역의 연도·인접도로 정렬한 흐름입니다.",
+    en: "* Not a citation-based influence graph; an ordering by year + embedding adjacency.",
+  },
+  emptyHeading: { ko: "상세 패널", en: "Detail panel" },
+  emptyBody: {
+    ko: "지도의 셀을 클릭하거나, 좌측 공백 후보를 선택하면 여기에 정보가 표시됩니다.",
+    en: "Click a cell on the map or pick a whitespace candidate to see details here.",
+  },
+  emptyBullets: {
+    ko: [
+      "셀에 속한 대표 논문 5편",
+      "인접 영역의 키워드",
+      "공백 후보일 경우: 근거 + 인접 대표 논문 + Scholar 검색 링크",
+    ],
+    en: [
+      "Up to 5 representative papers in the cell",
+      "Keywords from neighboring areas",
+      "For whitespace candidates: rationale + neighbor papers + Scholar links",
+    ],
+  },
+  guideTitle: { ko: "시작 가이드", en: "Quick guide" },
+  guide: {
+    map: {
+      ko: ["중앙: 연구 지형도", "진한 파랑일수록 논문 많음. 영역 라벨로 어떤 분야인지 확인."],
+      en: [
+        "Center: research landscape",
+        "Darker blue = more papers. Region labels show topical areas.",
+      ],
+    },
+    candidates: {
+      ko: [
+        "좌측: 공백 후보 Top 10",
+        "주변 활발 + 자기 비어있는 영역. 모드 토글로 지도에서 강조.",
+      ],
+      en: [
+        "Left: whitespace Top 10",
+        "Active neighbors + sparse self. Toggle mode to highlight them on the map.",
+      ],
+    },
+    detail: {
+      ko: ["우측: 상세 + 다음 행동", "셀/후보 클릭 → 인접 대표 논문 + Scholar 검색 링크."],
+      en: [
+        "Right: details + next action",
+        "Click a cell/candidate → neighbor papers + Scholar links.",
+      ],
+    },
+  },
+  legend: {
+    occupied: { ko: "점유 영역 (진할수록 논문 많음)", en: "Occupied area (denser = more papers)" },
+    whitespaceOn: { ko: "공백 후보 (강조 중)", en: "Whitespace candidate (highlighted)" },
+    whitespaceOff: { ko: "공백 후보 (모드 OFF)", en: "Whitespace (mode OFF)" },
+    paperDot: { ko: "개별 논문 점", en: "Individual paper" },
+    summary: (cells: number, papers: number) => ({
+      ko: `셀 ${cells} · 논문 ${papers}편 · 클릭으로 상세`,
+      en: `${cells} cells · ${papers} papers · click to inspect`,
+    }),
+  },
+  localeToggle: { ko: "EN", en: "한국어" },
+} as const;
+
+export function t(locale: Locale, key: keyof typeof STRINGS): string {
+  const v = STRINGS[key] as { ko: string; en: string };
+  return v[locale];
+}
+
+export const ui = STRINGS;

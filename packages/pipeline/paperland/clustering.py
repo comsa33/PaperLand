@@ -37,6 +37,24 @@ def cluster_hdbscan(
     return clusterer.fit_predict(embeddings)
 
 
+def cluster_kmeans(
+    embeddings: np.ndarray,
+    n_clusters: int = 10,
+    random_state: int = 42,
+) -> np.ndarray:
+    """KMeans로 K개 클러스터 강제 할당 — V0 실데이터에서 noise 비율이 높을 때 사용.
+
+    cosine 유사도 기준 군집화를 위해 입력을 L2 정규화한 뒤 euclidean KMeans 적용
+    (정규화된 벡터의 euclidean ≈ cosine).
+    """
+    from sklearn.cluster import KMeans
+    from sklearn.preprocessing import normalize
+
+    normed = normalize(embeddings, norm="l2")
+    km = KMeans(n_clusters=n_clusters, random_state=random_state, n_init="auto")
+    return km.fit_predict(normed)
+
+
 def extract_cluster_keywords(
     papers_df: pl.DataFrame,
     cluster_labels: np.ndarray,
@@ -89,15 +107,26 @@ def extract_cluster_keywords(
     tfidf = TfidfTransformer().fit_transform(counts)
     feature_names = vectorizer.get_feature_names_out()
 
-    # 다어 구문(bigram)을 1차 후보로, 단일 단어는 보충용으로만 사용 — 라벨 변별력 확보
+    # 다어 구문(bigram)을 1차 후보로, 단일 단어는 보충용으로만 사용
     is_multiword = np.array([" " in name for name in feature_names])
+
+    # 변별력 확보: 절반 이상의 클러스터에 공통으로 등장하는 글로벌 키워드를 페널티.
+    # cs.CL 실데이터에서 "large language", "language model" 등이 모든 클러스터를 덮어
+    # 라벨이 다 비슷해지는 현상을 방지.
+    n_clusters_total = tfidf.shape[0]
+    appears_in_clusters = np.array([
+        int((tfidf[:, j].toarray().flatten() > 0).sum())
+        for j in range(tfidf.shape[1])
+    ])
+    is_global = appears_in_clusters >= max(2, int(0.6 * n_clusters_total))
 
     result: dict[int, list[str]] = {}
     for idx, cid in enumerate(cluster_ids):
         row = tfidf[idx].toarray().flatten()
-        order = row.argsort()[::-1]
+        # 글로벌 키워드는 점수에 0.3배 페널티 (제거하지는 않음 — fallback용)
+        adjusted = row * np.where(is_global, 0.3, 1.0)
+        order = adjusted.argsort()[::-1]
 
-        # 1) bigram에서 top_n 채우기
         multiword_picks: list[str] = []
         unigram_backup: list[str] = []
         for i in order:
@@ -107,7 +136,6 @@ def extract_cluster_keywords(
                 if len(multiword_picks) < top_n:
                     multiword_picks.append(feature_names[i])
             else:
-                # 이미 multiword 안에 unigram이 포함된 경우는 스킵
                 token = feature_names[i]
                 if any(token in m.split() for m in multiword_picks):
                     continue

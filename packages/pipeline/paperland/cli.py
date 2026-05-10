@@ -86,7 +86,7 @@ def build(
     from .embedding import embed_papers
     from .projection import fit_umap, project_to_2d, coords_to_dataframe
     from .clustering import (
-        cluster_hdbscan,
+        cluster_kmeans,
         extract_cluster_keywords,
         keywords_per_paper,
     )
@@ -106,8 +106,12 @@ def build(
     coords = project_to_2d(reducer, embeddings)
     coords_df = coords_to_dataframe(arxiv_ids, coords)
 
-    rprint("[cyan]HDBSCAN 클러스터링[/]")
-    cluster_labels_arr = cluster_hdbscan(embeddings)
+    rprint("[cyan]KMeans 클러스터링 (embedding 코사인 기반)[/]")
+    # 실데이터의 SPECTER2 임베딩 + 2D UMAP 은 한 덩어리로 모이는 경향이 있어
+    # HDBSCAN noise 비율이 높음. K개 클러스터를 강제 할당하는 KMeans로 안정화.
+    n_papers = len(papers_df)
+    n_clusters_target = max(6, min(15, n_papers // 200))  # 2000편 → 10
+    cluster_labels_arr = cluster_kmeans(embeddings, n_clusters=n_clusters_target)
     cluster_keywords = extract_cluster_keywords(papers_df, cluster_labels_arr)
     paper_keywords = keywords_per_paper(papers_df, cluster_labels_arr, cluster_keywords)
 
@@ -131,12 +135,31 @@ def build(
     )
 
     rprint("[cyan]artifact 빌드[/]")
+    # 클러스터 centroid — 지도 영역 라벨용
+    arxiv_to_label = dict(zip(papers_df["arxiv_id"].to_list(), cluster_labels_arr))
+    grouped: dict[int, list[tuple[float, float]]] = {}
+    for row in coords_df.to_dicts():
+        label = int(arxiv_to_label.get(row["arxiv_id"], -1))
+        if label == -1:
+            continue
+        grouped.setdefault(label, []).append((row["x"], row["y"]))
+    cluster_centroids: dict[int, dict[str, float]] = {}
+    for cid, points in grouped.items():
+        xs = [p[0] for p in points]
+        ys = [p[1] for p in points]
+        cluster_centroids[cid] = {
+            "x": float(sum(xs) / len(xs)),
+            "y": float(sum(ys) / len(ys)),
+            "count": len(points),
+        }
+
     manifest = build_artifacts(
         out_dir=out,
         cells_df=cells_df,
         coords_df=coords_df,
         papers_df=papers_df,
         cluster_labels=cluster_keywords,
+        cluster_centroids=cluster_centroids,
         whitespace_top=whitespace,
         embedding_model=f"{embedding_model}",
         categories=sorted(set(papers_df["primary_category"].to_list())),

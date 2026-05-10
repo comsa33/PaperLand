@@ -263,7 +263,7 @@ function LineageBlock({ lineage }: { lineage: Lineage }) {
       <div className="flex items-center gap-2">
         <GitBranch className="w-4 h-4 text-blue-500" />
         <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
-          근사 계보 (year + 인접도 기반)
+          연도별 인접 연구 흐름
         </p>
       </div>
       {hasFoundations && (
@@ -312,7 +312,7 @@ function LineageBlock({ lineage }: { lineage: Lineage }) {
         </div>
       )}
       <p className="text-xs text-[hsl(var(--foreground))]/55 italic">
-        ※ citation 기반 진짜 계보가 아니라, 같은 영역의 연도+인접도 기반 근사 계보입니다.
+        ※ citation 기반 영향 관계가 아니라, 같은 임베딩 영역의 연도·인접도로 정렬한 흐름입니다.
       </p>
     </div>
   );

@@ -27,7 +27,10 @@ class AdjacentGapConfig:
 
     k_ring: int = 1  # 이웃 반경
     min_neighbor_density: float = 1.0  # 이웃 평균 밀도 최소값
-    max_own_count: int = 2  # 자기 셀 논문 수 최대 (이하만 후보)
+    # 자기 셀 논문 수 절대값 — None이면 상대 비율만 사용
+    max_own_count: int | None = None
+    # 자기 셀이 이웃 평균 대비 이 비율 이하여야 후보 (예: 0.5 → 이웃의 50% 이하)
+    relative_density_max: float = 0.5
     top_k: int = 10  # 최종 후보 수
 
 
@@ -78,8 +81,17 @@ class AdjacentGapDetector:
                 continue
 
             own_count = own_counts.get(cell_id, 0)
-            if own_count > self.config.max_own_count:
+            # 절대 임계값 (선택적)
+            if (
+                self.config.max_own_count is not None
+                and own_count > self.config.max_own_count
+            ):
                 continue
+            # 상대 임계값 — 이웃 평균 대비 너무 빽빽하면 공백 후보 아님
+            if neighbor_density > 0:
+                ratio = own_count / neighbor_density
+                if ratio > self.config.relative_density_max:
+                    continue
 
             score = neighbor_density * (1.0 - own_count / max_density)
 
@@ -195,11 +207,12 @@ class AdjacentGapDetector:
 
     @staticmethod
     def _build_lineage(nearest_papers: list[dict]) -> dict:
-        """근사 계보(approximate lineage) — citation 없이 연도+밀도 기반.
+        """연도별 인접 연구 흐름 — citation 없이 year + 임베딩 인접도로 정렬.
 
-        - foundations: 가장 오래된 2편 (이 영역의 기반 연구)
-        - active: 최근 2년 이내 활발한 인접 연구 2편
-        - bridge_text: 두 흐름 사이의 빈 영역 설명
+        - foundations: 인접 영역에서 가장 오래된 2편 (기반 연구)
+        - active: 인접 영역에서 가장 최근 3편 (활발 인접 연구)
+        - bridge_text: 두 흐름 사이의 시간 격차에 대한 자연 문장
+        ※ 진짜 영향 관계(citation)가 아닌 정렬 기반 흐름. UI에서 "계보" 단정 표현 회피.
         """
         if not nearest_papers:
             return {"foundations": [], "active": [], "bridge_text": ""}
