@@ -145,14 +145,26 @@ function CandidateBlock({ candidate }: { candidate: WhitespaceCandidate }) {
     <section className="rounded-lg border border-orange-300/50 bg-orange-50/50 dark:bg-orange-950/25 p-4 space-y-4">
       <div className="flex gap-2.5 items-start">
         <Lightbulb className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
-        <div className="space-y-2">
+        <div className="space-y-2 min-w-0 flex-1">
           <p className="text-sm font-semibold text-orange-600 dark:text-orange-300">
-            그래서 뭘 하면 되나
+            그래서 뭘 하면 되나 — 5분 검증 플로우
           </p>
-          <p className="text-sm leading-relaxed text-[hsl(var(--foreground))]/85">
-            아래 <b>인접 영역의 대표 논문 5편</b>을 먼저 살펴보고, 같은 키워드 조합이
-            실제로 비어있는지 <b>Scholar 검색 쿼리</b>로 확인하세요. 진짜 공백이라면
-            연구 주제 후보로 검토할 가치가 있습니다.
+          <ol className="text-sm leading-relaxed text-[hsl(var(--foreground))]/85 space-y-1.5 list-decimal pl-4">
+            <li>
+              아래 <b>인접 대표 논문 5편</b>의 제목을 훑어 이 영역이 어떤 분야 사이에
+              위치하는지 빠르게 파악
+            </li>
+            <li>
+              <b>Scholar 검색 쿼리</b> 1–2개를 클릭해 외부 검색에서 같은 조합의
+              논문이 실제로 있는지 1차 확인
+            </li>
+            <li>
+              결과가 충분히 적다면 <b>연구 주제 후보</b>로 메모. 위 인접 논문들이
+              관련 연구(Related Work) 후보로 그대로 활용 가능
+            </li>
+          </ol>
+          <p className="text-xs text-[hsl(var(--foreground))]/55 italic">
+            지도 헤더의 「연구 흐름 보기」로 전환하면 이 후보 주변의 연도별 흐름을 볼 수 있습니다.
           </p>
         </div>
       </div>

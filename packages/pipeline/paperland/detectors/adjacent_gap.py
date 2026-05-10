@@ -20,6 +20,207 @@ from scipy.spatial import ConvexHull, Delaunay
 
 from ..gridding import cell_neighbors
 
+# ──────────────────── 키워드 → 연구 질문 변환 ────────────────────
+# cs.CL 분야의 핵심 용어를 method / domain / task / model 4가지로 분류
+# 그 위에서 자연어 연구 질문 문장을 합성. (LLM 미사용, 템플릿 기반)
+_METHOD_KEYWORDS = {
+    "fine tuning", "instruction tuning", "lora", "qlora", "rlhf", "alignment",
+    "preference learning", "reward modeling", "prompt tuning", "in context",
+    "chain of thought", "self consistency", "self correction", "verification",
+    "self verification", "claim verification", "retrieval", "rag",
+    "retrieval augmented", "dense passage retrieval", "vector index",
+    "knowledge distillation", "quantization", "model quantization",
+    "structured pruning", "speculative decoding", "kv cache",
+    "kv cache compression", "constitutional ai",
+}
+_DOMAIN_KEYWORDS = {
+    "knowledge graphs", "knowledge graph", "knowledge editing", "social media",
+    "fake news", "hate speech", "peer review", "code switching",
+    "speech recognition", "sign language", "low resource", "multilingual",
+    "cross lingual", "medical", "clinical", "legal", "biomedical",
+    "scientific", "mathematical", "code generation", "coding agents",
+    "agent systems", "ai agents",
+}
+_TASK_KEYWORDS = {
+    "question answering", "summarization", "machine translation",
+    "named entity recognition", "sentiment classification", "sentiment analysis",
+    "text classification", "dialogue systems", "dialogue", "reasoning",
+    "math word problem", "symbolic reasoning", "image captioning",
+    "video understanding", "visual question answering",
+    "multimodal grounding", "translation", "parsing",
+}
+_MODEL_KEYWORDS = {
+    "transformer", "transformers", "language model", "language models",
+    "large language", "large language model", "language llms", "llms",
+    "llm", "vision language", "multimodal", "agent", "agents",
+}
+
+
+def _classify_keyword(kw: str) -> str:
+    """키워드를 method / domain / task / model / unknown 중 하나로 분류.
+
+    1) 사전 정확 매칭
+    2) 부분 문자열 매칭
+    3) 어휘 패턴 휴리스틱 (접미사·키워드)
+    """
+    norm = kw.lower().strip()
+
+    # 1) 사전 정확 매칭
+    if norm in _MODEL_KEYWORDS:
+        return "model"
+    if norm in _METHOD_KEYWORDS:
+        return "method"
+    if norm in _DOMAIN_KEYWORDS:
+        return "domain"
+    if norm in _TASK_KEYWORDS:
+        return "task"
+
+    # 2) 부분 문자열 매칭
+    if any(t in norm for t in ("language model", "llm", "large language")):
+        return "model"
+    if any(t in norm for t in _METHOD_KEYWORDS):
+        return "method"
+    if any(t in norm for t in _DOMAIN_KEYWORDS):
+        return "domain"
+    if any(t in norm for t in _TASK_KEYWORDS):
+        return "task"
+
+    # 3) 어휘 패턴
+    if any(
+        s in norm
+        for s in (
+            "answering", "classification", "translation", "generation",
+            "summarization", "captioning", "parsing", "detection",
+            "extraction", "tagging", "completion", "evaluation",
+        )
+    ):
+        return "task"
+    if any(
+        s in norm
+        for s in (
+            "tuning", "distillation", "decoding", "alignment", "retrieval",
+            "verification", "consistency", "reasoning", "prompting",
+            "reflection", "augmentation",
+        )
+    ):
+        return "method"
+    if any(
+        s in norm
+        for s in (
+            "data", "dataset", "domain", "graph", "speech", "media",
+            "language", "code", "benchmark", "review", "switching",
+            "traces", "trace",
+        )
+    ):
+        return "domain"
+    return "unknown"
+
+
+def _dedup_roles(kws: list[str], roles: list[str]) -> tuple[list[str], list[str]]:
+    """같은 role(특히 model)이 중복되면 첫 것만 유지하여 변별력 확보."""
+    out_kws: list[str] = []
+    out_roles: list[str] = []
+    seen_roles: set[str] = set()
+    for k, r in zip(kws, roles):
+        # model 중복은 첫 것만 (나머지는 unknown으로 강등해 메시지에 안 쓰이게)
+        if r == "model" and "model" in seen_roles:
+            continue
+        out_kws.append(k)
+        out_roles.append(r)
+        if r != "unknown":
+            seen_roles.add(r)
+    return out_kws, out_roles
+
+
+def _compose_question(kws: list[str], roles: list[str]) -> str | None:
+    """역할 시퀀스를 보고 연구 질문 문장을 합성. 매칭 실패 시 None."""
+    if not kws:
+        return None
+    role_set = set(roles)
+
+    def quoted(k: str) -> str:
+        return f'"{k}"'
+
+    # 패턴 A: model + domain + task → "{model}이 {domain}에 쓰이지만, 이 위에서 {task}의 직접 연구는 적음"
+    if {"model", "domain", "task"}.issubset(role_set):
+        m = next(k for k, r in zip(kws, roles) if r == "model")
+        d = next(k for k, r in zip(kws, roles) if r == "domain")
+        t = next(k for k, r in zip(kws, roles) if r == "task")
+        return (
+            f"{quoted(m)} 기반 접근이 {quoted(d)} 영역에서 활발한 반면, "
+            f"이를 {quoted(t)}로 직접 연결하는 연구는 상대적으로 적습니다."
+        )
+
+    # 패턴 B: model + domain → "{model}을 {domain}에 직접 적용하는 연구가 적음"
+    if {"model", "domain"} == role_set or (
+        {"model", "domain"}.issubset(role_set) and "task" not in role_set
+    ):
+        m = next(k for k, r in zip(kws, roles) if r == "model")
+        d = next(k for k, r in zip(kws, roles) if r == "domain")
+        extras = [k for k, r in zip(kws, roles) if r not in {"model", "domain"}]
+        extra_clause = f" ({', '.join(quoted(e) for e in extras)} 측면 포함)" if extras else ""
+        return (
+            f"{quoted(m)}을 {quoted(d)} 영역에 직접 결합하는 연구가{extra_clause} "
+            f"상대적으로 적습니다."
+        )
+
+    # 패턴 C: method + domain → "{method}가 {domain}에 활발하지만, 직접 결합 연구가 적음"
+    if {"method", "domain"}.issubset(role_set):
+        meth = next(k for k, r in zip(kws, roles) if r == "method")
+        d = next(k for k, r in zip(kws, roles) if r == "domain")
+        return (
+            f"{quoted(meth)} 기법이 활발한 반면, 이를 {quoted(d)} 영역에 "
+            f"직접 적용하는 연구는 상대적으로 적습니다."
+        )
+
+    # 패턴 D: method + task → "{method}로 {task}를 직접 다루는 연구가 적음"
+    if {"method", "task"}.issubset(role_set):
+        meth = next(k for k, r in zip(kws, roles) if r == "method")
+        t = next(k for k, r in zip(kws, roles) if r == "task")
+        return (
+            f"{quoted(meth)}로 {quoted(t)}를 직접 다루는 연구가 상대적으로 적습니다."
+        )
+
+    # 패턴 E: domain + task → "{domain}에서 {task}를 직접 다루는 연구가 적음"
+    if {"domain", "task"}.issubset(role_set):
+        d = next(k for k, r in zip(kws, roles) if r == "domain")
+        t = next(k for k, r in zip(kws, roles) if r == "task")
+        return (
+            f"{quoted(d)} 영역에서 {quoted(t)}를 직접 다루는 연구가 "
+            f"상대적으로 적습니다."
+        )
+
+    # 패턴 F: model + task → "{model}로 {task}를 직접 다루는 연구가 적음"
+    if {"model", "task"}.issubset(role_set):
+        m = next(k for k, r in zip(kws, roles) if r == "model")
+        t = next(k for k, r in zip(kws, roles) if r == "task")
+        return (
+            f"{quoted(m)}을 활용해 {quoted(t)}를 직접 다루는 연구가 "
+            f"상대적으로 적습니다."
+        )
+
+    # 패턴 G: model 단독 + 나머지 → "{model}을 다른 영역에 직접 결합하는 연구가 적음"
+    if "model" in role_set and len(kws) >= 2:
+        m = next(k for k, r in zip(kws, roles) if r == "model")
+        others = [k for k, r in zip(kws, roles) if r != "model"]
+        if others:
+            others_phrase = ", ".join(quoted(o) for o in others[:2])
+            return (
+                f"{quoted(m)}을 {others_phrase} 측면에 직접 결합하는 연구가 "
+                f"상대적으로 적습니다."
+            )
+
+    # 패턴 H: domain 둘 이상 → "{domain1}과 {domain2}를 직접 잇는 연구가 적음"
+    domain_kws = [k for k, r in zip(kws, roles) if r == "domain"]
+    if len(domain_kws) >= 2:
+        return (
+            f"{quoted(domain_kws[0])}과 {quoted(domain_kws[1])}를 직접 잇는 "
+            f"연구가 상대적으로 적습니다."
+        )
+
+    return None
+
+
 
 @dataclass
 class AdjacentGapConfig:
@@ -271,26 +472,34 @@ class AdjacentGapDetector:
 
     @staticmethod
     def _build_summary(neighbor_keywords: list[str]) -> str:
-        """후보를 연구자 언어로 요약하는 '기회 문장'.
+        """키워드 조합을 '연구 질문 문장'으로 변환.
 
-        영어 키워드를 따옴표로 감싸 명사구로 처리하고, 한국어 조사는 따옴표 뒤
-        명사 연결어("영역", "사이")에만 붙여 어색함을 회피.
+        키워드를 method / domain / task 범주로 분류해 자연어 문장 생성.
+        예: ["large language", "knowledge graphs", "question answering"]
+        → "지식그래프 기반 LLM이 활발하지만, 이를 활용한 질문응답의
+           직접 결합 연구는 상대적으로 적습니다"
+
+        분류 실패 시 따옴표 명사구 fallback.
         """
         if not neighbor_keywords:
-            return "주변 분야 대비 직접 연구가 적은 영역"
-        kws = neighbor_keywords[:3]
-        primary = kws[0]
+            return "주변 분야 대비 직접 연구가 적은 영역입니다"
+        kws_raw = neighbor_keywords[:5]
+        roles_raw = [_classify_keyword(k) for k in kws_raw]
+        kws, roles = _dedup_roles(kws_raw, roles_raw)
+        kws, roles = kws[:3], roles[:3]
+        question = _compose_question(kws, roles)
+        if question:
+            return question
+        # fallback: 일반 패턴
         if len(kws) == 1:
-            return f'"{primary}" 영역 주변은 활발하지만, 같은 영역의 직접 연구는 드뭅니다'
-        secondary = kws[1]
+            return f'"{kws[0]}" 영역 주변은 활발하지만, 같은 영역의 직접 연구는 드뭅니다'
         if len(kws) == 2:
             return (
-                f'"{primary}" 영역은 활발한 반면, '
-                f'"{secondary}" 와 결합한 직접 연구는 드뭅니다'
+                f'"{kws[0]}" 영역은 활발한 반면, '
+                f'"{kws[1]}" 와 결합한 직접 연구는 드뭅니다'
             )
-        third = kws[2]
         return (
-            f'"{primary}", "{secondary}", "{third}" 사이를 직접 잇는 '
+            f'"{kws[0]}", "{kws[1]}", "{kws[2]}" 사이를 직접 잇는 '
             f'연구는 드뭅니다'
         )
 
@@ -350,28 +559,28 @@ class AdjacentGapDetector:
     def _build_rationale(
         cand: dict, neighbor_keywords: list[str], neighbor_cats: list[str]
     ) -> str:
-        """근거 템플릿 — 연구자 언어 + 수치 근거 (UX 원칙: 단정 금지)."""
+        """근거 템플릿 — '왜 이 빈틈이 연구 기회인가'를 한 문장으로 해석.
+
+        UX 원칙 준수: 단정 금지, 데이터 기준 명시.
+        """
         kws = neighbor_keywords[:3]
         if len(kws) >= 2:
             kw_phrase = ", ".join(f'"{k}"' for k in kws)
             topic_clause = (
-                f"주변에는 {kw_phrase} 관련 논문군이 있지만, "
-                f"이 조합을 직접 다루는 논문은 적습니다."
+                f"이 영역 주변에는 {kw_phrase} 관련 논문군이 따로따로 활발하지만, "
+                f"이들을 직접 한 연구로 묶는 논문은 수집 데이터 기준 적습니다."
             )
         elif kws:
             topic_clause = (
-                f'주변에는 "{kws[0]}" 관련 논문이 있지만, '
-                f"같은 영역의 직접 논문은 적습니다."
+                f'이 영역 주변에는 "{kws[0]}" 관련 논문이 활발하지만, '
+                f"같은 영역의 직접 연구는 수집 데이터 기준 적습니다."
             )
         else:
             topic_clause = "주변 영역에 비해 직접 논문이 적은 위치입니다."
-        cats = " · ".join(neighbor_cats[:2]) if neighbor_cats else None
-        cat_clause = f" 주변 카테고리: {cats}." if cats else ""
         density_clause = (
-            f"수집 데이터 기준 이 셀 {cand['own_count']}편, "
-            f"인접 셀 평균 {cand['neighbor_density']:.1f}편."
+            f" (이 셀 {cand['own_count']}편 vs 인접 셀 평균 {cand['neighbor_density']:.1f}편)"
         )
-        return f"{topic_clause}{cat_clause} {density_clause}"
+        return topic_clause + density_clause
 
     @staticmethod
     def _empty_result() -> pl.DataFrame:

@@ -19,7 +19,9 @@ export function WhitespacePanel({ candidates }: Props) {
       <div className="px-5 py-4 border-b border-[hsl(var(--border))]">
         <div className="flex items-center gap-2 mb-2">
           <Compass className="w-5 h-5 text-orange-500" />
-          <h2 className="text-base font-bold">공백 후보 Top 10</h2>
+          <h2 className="text-base font-bold">
+            검출된 공백 후보 {candidates.length}개
+          </h2>
         </div>
         <p className="text-sm text-[hsl(var(--foreground))]/70 leading-relaxed">
           <b>주변은 활발한데 자기 셀만 비어있는 영역</b>입니다.

@@ -280,6 +280,53 @@ function FlowGraph({ candidate }: { candidate: WhitespaceCandidate }) {
 
       {/* 범례 */}
       <Legend flows={flows} />
+
+      {/* 왜 빈틈인가 — 해석 블록 */}
+      {flows.length >= 2 && (
+        <Interpretation candidate={candidate} flows={flows} />
+      )}
+    </div>
+  );
+}
+
+function Interpretation({
+  candidate,
+  flows,
+}: {
+  candidate: WhitespaceCandidate;
+  flows: Flow[];
+}) {
+  const flowA = flows[0]?.label ?? "흐름 A";
+  const flowB = flows[1]?.label ?? "흐름 B";
+  const yearsA = flows[0]?.nodes.map((n) => n.year) ?? [];
+  const yearsB = flows[1]?.nodes.map((n) => n.year) ?? [];
+  const spanA = yearsA.length
+    ? `${Math.min(...yearsA)}–${Math.max(...yearsA)}`
+    : "—";
+  const spanB = yearsB.length
+    ? `${Math.min(...yearsB)}–${Math.max(...yearsB)}`
+    : "—";
+  return (
+    <div className="mt-4 p-4 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
+      <p className="text-xs font-bold text-[hsl(var(--foreground))]/70 uppercase tracking-wider mb-2">
+        왜 이 흐름 사이가 빈틈인가
+      </p>
+      <ul className="text-sm leading-relaxed text-[hsl(var(--foreground))]/85 space-y-1.5">
+        <li>
+          · &quot;{flowA}&quot; 흐름은 {spanA} 사이에 {yearsA.length}편의 인접
+          논문이 있고, &quot;{flowB}&quot; 흐름은 {spanB} 사이에 {yearsB.length}
+          편이 있습니다.
+        </li>
+        <li>
+          · 같은 시기를 지나면서도 두 흐름을 직접 묶은 논문은 이 셀 기준{" "}
+          {candidate.own_count}편(이웃 평균은 {candidate.neighbor_density.toFixed(1)}편).
+        </li>
+        <li>
+          · 만약 위 흐름 노드들 중 어느 한 페어를 직접 연결하는 시도를 한다면,
+          현재 데이터에서 직접 결합 사례가 적어 novelty 방어가 비교적 수월할
+          가능성이 있습니다 (※ 실제 검증은 Scholar 검색 필요).
+        </li>
+      </ul>
     </div>
   );
 }
@@ -305,11 +352,10 @@ function PaperCard({
   title: string;
   year: number;
 }) {
-  const short = title.length > 60 ? title.slice(0, 57) + "…" : title;
   return (
     <div
       title={`${year} · ${title}`}
-      className="absolute rounded-md border bg-[hsl(var(--background))] shadow-sm hover:shadow-md transition cursor-help overflow-hidden"
+      className="absolute rounded-md border bg-[hsl(var(--background))] shadow-sm hover:shadow-md hover:z-30 transition cursor-help overflow-hidden"
       style={{
         left,
         top,
@@ -325,10 +371,10 @@ function PaperCard({
         {year}
       </div>
       <div
-        className="px-2 py-1.5 text-[12px] leading-snug font-medium"
+        className="px-2 py-1.5 text-[12px] leading-snug font-medium overflow-hidden"
         style={{ background: bg, height: height - 16 }}
       >
-        {short}
+        <span className="line-clamp-3">{title}</span>
       </div>
     </div>
   );
@@ -343,12 +389,12 @@ function BridgeNode({
   cy: number;
   summary: string;
 }) {
-  const w = 220;
-  const h = 90;
+  const w = 320;
+  const h = 110;
   return (
     <div
       title={summary}
-      className="absolute flex flex-col items-center justify-center text-center px-3 rounded-xl border-2 border-dashed border-orange-500 bg-orange-50/95 dark:bg-orange-950/40 shadow-md"
+      className="absolute flex flex-col items-center justify-center text-center px-4 rounded-xl border-2 border-dashed border-orange-500 bg-orange-50/95 dark:bg-orange-950/40 shadow-lg z-20"
       style={{
         left: cx - w / 2,
         top: cy - h / 2,
@@ -359,7 +405,7 @@ function BridgeNode({
       <p className="text-[11px] font-bold text-orange-600 dark:text-orange-300 uppercase tracking-wider">
         비어 있는 결합 후보
       </p>
-      <p className="mt-1 text-[12px] leading-snug font-semibold text-orange-900 dark:text-orange-200 line-clamp-3">
+      <p className="mt-1.5 text-[13px] leading-snug font-semibold text-orange-900 dark:text-orange-200">
         {summary}
       </p>
     </div>
@@ -471,9 +517,9 @@ function computeLayout(args: {
   flows: Flow[];
 }): Layout {
   const containerWidth = Math.max(args.width, 320);
-  const cardW = 150;
-  const cardH = 56;
-  const padLeft = 170; // 흐름 라벨 영역 확보
+  const cardW = 180;
+  const cardH = 86;
+  const padLeft = 180; // 흐름 라벨 영역 확보
   const padRight = 24;
   const minX = padLeft + cardW / 2;
   const maxX = containerWidth - padRight - cardW / 2;
@@ -488,8 +534,8 @@ function computeLayout(args: {
 
   // 흐름 lane 배치: 가운데 bridge node 위/아래로 분산
   const totalRows = args.flows.length;
-  const flowRowHeight = 100; // 카드 + 여백
-  const bridgeHeight = 110;
+  const flowRowHeight = 130; // 카드(86) + 여백
+  const bridgeHeight = 130;
   const baseTop = 40;
   const stackTop = baseTop;
   const stackBottom = baseTop + totalRows * flowRowHeight + bridgeHeight;
