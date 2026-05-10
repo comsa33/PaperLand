@@ -41,16 +41,17 @@ class AdjacentGapDetector:
         self,
         cells_df: pl.DataFrame,
         paper_coords: np.ndarray | None = None,
+        papers_with_coords: pl.DataFrame | None = None,
     ) -> pl.DataFrame:
         """공백 후보 산출.
 
         Args:
             cells_df: [cell_id, paper_count, recent_count, centroid_x, centroid_y, top_keywords, dominant_category]
             paper_coords: 본질 공백 필터링용 전체 논문 좌표 (N, 2). None이면 필터 생략.
+            papers_with_coords: 인접 대표 논문 추출용. [arxiv_id, title, x, y, cell_id]. None이면 nearest_papers 빈 리스트.
 
         Returns:
-            Top-K 후보 데이터프레임:
-                [cell_id, score, neighbor_density, own_count, neighbor_keywords, ...]
+            Top-K 후보 데이터프레임 — 인접 대표 논문 5편 포함.
         """
         if cells_df.is_empty():
             return self._empty_result()
@@ -101,24 +102,86 @@ class AdjacentGapDetector:
         scored.sort(key=lambda r: r["score"], reverse=True)
         top = scored[: self.config.top_k]
 
-        # 5. 인접 키워드 / 카테고리 보강
+        # 5. 인접 키워드 / 카테고리 / 대표 논문 보강
         cells_lookup = {row["cell_id"]: row for row in cells_df.to_dicts()}
+        papers_by_cell = self._index_papers_by_cell(papers_with_coords)
         enriched = []
         for cand in top:
             neighbor_kws = self._aggregate_neighbor_keywords(cand["neighbor_cells"], cells_lookup)
             neighbor_cats = self._aggregate_neighbor_categories(
                 cand["neighbor_cells"], cells_lookup
             )
-            rationale = self._build_rationale(cand, neighbor_cats)
+            nearest = self._collect_nearest_papers(
+                cand["cell_id"], cand["neighbor_cells"], cells_lookup, papers_by_cell
+            )
+            summary = self._build_summary(neighbor_kws)
+            rationale = self._build_rationale(cand, neighbor_kws, neighbor_cats)
             enriched.append({
                 **cand,
                 "detector": "AdjacentGap",
                 "neighbor_keywords": neighbor_kws,
                 "neighbor_categories": neighbor_cats,
+                "nearest_papers": nearest,
+                "summary": summary,
                 "rationale_template": rationale,
             })
 
         return pl.DataFrame(enriched)
+
+    @staticmethod
+    def _index_papers_by_cell(
+        papers_with_coords: pl.DataFrame | None,
+    ) -> dict[str, list[dict]]:
+        if papers_with_coords is None or papers_with_coords.is_empty():
+            return {}
+        out: dict[str, list[dict]] = {}
+        for row in papers_with_coords.to_dicts():
+            cell = row.get("cell_id")
+            if not cell:
+                continue
+            out.setdefault(cell, []).append(row)
+        return out
+
+    @staticmethod
+    def _collect_nearest_papers(
+        cell_id: str,
+        neighbor_cells: list[str],
+        cells_lookup: dict[str, dict],
+        papers_by_cell: dict[str, list[dict]],
+        limit: int = 5,
+    ) -> list[dict]:
+        """인접 셀에서 대표 논문을 골라 후보를 설명."""
+        if not papers_by_cell:
+            return []
+        # 밀도가 가장 높은 이웃 셀부터 순회하며 논문 수집
+        ranked_neighbors = sorted(
+            neighbor_cells,
+            key=lambda nc: cells_lookup.get(nc, {}).get("paper_count", 0) or 0,
+            reverse=True,
+        )
+        result: list[dict] = []
+        for nc in ranked_neighbors:
+            for paper in papers_by_cell.get(nc, []):
+                result.append({
+                    "id": paper["arxiv_id"],
+                    "title": paper["title"],
+                    "neighbor_cell": nc,
+                })
+                if len(result) >= limit:
+                    return result
+        return result
+
+    @staticmethod
+    def _build_summary(neighbor_keywords: list[str]) -> str:
+        """후보를 연구자 언어로 요약하는 한 줄 제목 (UI 카드의 title 위치)."""
+        if not neighbor_keywords:
+            return "주변 분야 대비 저밀도 영역"
+        kws = neighbor_keywords[:3]
+        if len(kws) == 1:
+            return f"{kws[0]} 인접 저밀도 영역"
+        if len(kws) == 2:
+            return f"{kws[0]} × {kws[1]} 교차 저밀도 영역"
+        return f"{kws[0]} × {kws[1]} (+ {kws[2]}) 교차 저밀도 영역"
 
     def _generate_candidate_cells(self, cells_df: pl.DataFrame) -> list[str]:
         """후보 셀 = 기존 셀들의 k-ring 이웃 중 자기 자신 외 모든 셀."""
@@ -173,14 +236,25 @@ class AdjacentGapDetector:
         return [cat for cat, _ in counter.most_common(3)]
 
     @staticmethod
-    def _build_rationale(cand: dict, neighbor_cats: list[str]) -> str:
-        """수치 근거 템플릿 (UX 원칙: 단정 금지, 근거 명시)."""
-        cats = " · ".join(neighbor_cats[:2]) if neighbor_cats else "주변 분야"
-        return (
-            f"수집 데이터 기준으로 이 영역의 논문은 {cand['own_count']}편이며, "
-            f"인접 셀 평균은 {cand['neighbor_density']:.1f}편입니다. "
-            f"주변 분야({cats})와 비교했을 때 저밀도 영역으로 분류된 공백 후보입니다."
+    def _build_rationale(
+        cand: dict, neighbor_keywords: list[str], neighbor_cats: list[str]
+    ) -> str:
+        """근거 템플릿 — 연구자 언어 + 수치 근거 (UX 원칙: 단정 금지)."""
+        kws = neighbor_keywords[:3]
+        if len(kws) >= 2:
+            kw_phrase = f'"{kws[0]}", "{kws[1]}"' + (f', "{kws[2]}"' if len(kws) >= 3 else "")
+            topic_clause = f"주변에는 {kw_phrase} 관련 논문군이 있지만, 이 조합의 직접 논문은 적습니다."
+        elif kws:
+            topic_clause = f'주변에는 "{kws[0]}" 관련 논문이 있지만, 같은 영역에 직접 논문은 적습니다.'
+        else:
+            topic_clause = "주변 영역에 비해 직접 논문이 적은 위치입니다."
+        cats = " · ".join(neighbor_cats[:2]) if neighbor_cats else None
+        cat_clause = f" 주변 카테고리: {cats}." if cats else ""
+        density_clause = (
+            f"수집 데이터 기준 이 셀 {cand['own_count']}편 vs. "
+            f"인접 셀 평균 {cand['neighbor_density']:.1f}편."
         )
+        return f"{topic_clause}{cat_clause} {density_clause}"
 
     @staticmethod
     def _empty_result() -> pl.DataFrame:
@@ -194,6 +268,12 @@ class AdjacentGapDetector:
                 "detector": pl.Utf8,
                 "neighbor_keywords": pl.List(pl.Utf8),
                 "neighbor_categories": pl.List(pl.Utf8),
+                "nearest_papers": pl.List(pl.Struct({
+                    "id": pl.Utf8,
+                    "title": pl.Utf8,
+                    "neighbor_cell": pl.Utf8,
+                })),
+                "summary": pl.Utf8,
                 "rationale_template": pl.Utf8,
             }
         )

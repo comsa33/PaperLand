@@ -60,20 +60,28 @@ export function WhitespacePanel({ candidates }: Props) {
                   }`}
                   onClick={() => selectCandidate(c)}
                 >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-xs font-mono text-[hsl(var(--foreground))]/60">
+                  <div className="flex items-start gap-2">
+                    <span className="text-[11px] font-mono text-[hsl(var(--foreground))]/45 mt-0.5">
                       #{i + 1}
                     </span>
-                    <span className="text-[11px] text-[hsl(var(--accent))]">
-                      score {c.score.toFixed(2)}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold leading-snug line-clamp-2">
+                        {c.summary || "주변 분야 대비 저밀도 영역"}
+                      </p>
+                      {c.nearest_papers.length > 0 && (
+                        <p className="mt-1 text-[11px] text-[hsl(var(--foreground))]/55 line-clamp-1">
+                          예: {c.nearest_papers[0].title}
+                        </p>
+                      )}
+                      <div className="mt-1.5 flex items-center gap-3 text-[10px] text-[hsl(var(--foreground))]/45">
+                        <span title="공백 후보 점수 (근거 강도)">
+                          근거 {c.score.toFixed(1)}
+                        </span>
+                        <span>·</span>
+                        <span>이웃 ~{c.neighbor_density.toFixed(0)}편 vs 자기 {c.own_count}편</span>
+                      </div>
+                    </div>
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed line-clamp-2">
-                    {c.neighbor_keywords.slice(0, 3).join(" · ") || "키워드 정보 없음"}
-                  </p>
-                  <p className="mt-1 text-[11px] text-[hsl(var(--foreground))]/50">
-                    이웃 평균 {c.neighbor_density.toFixed(1)}편 · 자기 셀 {c.own_count}편
-                  </p>
                 </button>
               </li>
             );

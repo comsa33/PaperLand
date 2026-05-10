@@ -19,19 +19,52 @@ from .detectors import AdjacentGapDetector
 from .gridding import aggregate_cells, assign_cells
 from .schemas import Manifest
 
-# 합성 시 사용할 토픽 단어 풀 (cs.CL 분위기)
+# 합성 시 사용할 토픽 단어 풀 — 변별력 있는 도메인 어휘 (cs.CL 분위기)
 TOPIC_VOCABS = [
-    ["transformer", "attention", "language model", "pretraining", "tokenization"],
-    ["retrieval", "augmented", "rag", "knowledge", "vector database"],
-    ["hallucination", "factuality", "grounding", "verification", "evaluation"],
-    ["dialogue", "conversational", "agent", "tool use", "planning"],
-    ["alignment", "rlhf", "preference", "safety", "reward model"],
-    ["multimodal", "vision language", "image text", "captioning", "video"],
-    ["efficiency", "quantization", "distillation", "pruning", "inference"],
-    ["reasoning", "chain of thought", "step by step", "math", "logic"],
-    ["evaluation", "benchmark", "leaderboard", "metric", "human evaluation"],
-    ["instruction", "fine tuning", "lora", "adapter", "parameter efficient"],
+    [
+        "transformer architecture", "self attention", "positional encoding",
+        "language model pretraining", "subword tokenization",
+    ],
+    [
+        "retrieval augmented generation", "dense passage retrieval", "vector index",
+        "knowledge grounding", "external memory",
+    ],
+    [
+        "hallucination detection", "factual consistency", "claim verification",
+        "uncertainty estimation", "self consistency",
+    ],
+    [
+        "dialogue policy", "task oriented agent", "tool augmented llm",
+        "agent planning", "react prompting",
+    ],
+    [
+        "rlhf alignment", "preference learning", "reward modeling",
+        "safety guardrail", "constitutional ai",
+    ],
+    [
+        "vision language pretraining", "image captioning", "video understanding",
+        "visual question answering", "multimodal grounding",
+    ],
+    [
+        "model quantization", "knowledge distillation", "structured pruning",
+        "speculative decoding", "kv cache compression",
+    ],
+    [
+        "chain of thought reasoning", "math word problem", "symbolic reasoning",
+        "program of thought", "self verification",
+    ],
+    [
+        "benchmark construction", "human evaluation", "leaderboard contamination",
+        "robustness probing", "adversarial nli",
+    ],
+    [
+        "instruction tuning", "low rank adapter", "qlora finetuning",
+        "parameter efficient transfer", "prompt tuning",
+    ],
 ]
+
+# 노이즈 단어는 토픽 변별을 흐리게 하므로 매우 적게.
+NEUTRAL_FILLERS = ["empirical study", "ablation", "scalability", "case study"]
 
 
 def generate_fixtures(
@@ -79,11 +112,15 @@ def generate_fixtures(
     # 인공적으로 일부 셀을 비워서 AdjacentGap 후보 생성
     cells_df = _inject_synthetic_gaps(cells_df, rng)
 
-    # 공백 후보 탐지
+    # 공백 후보 탐지 — 인접 대표 논문 추출용 papers_with_coords 전달
+    papers_with_coords = papers_df.select(["arxiv_id", "title"]).join(
+        coords_df, on="arxiv_id", how="inner"
+    )
     detector = AdjacentGapDetector()
     whitespace = detector.detect(
         cells_df=cells_df,
         paper_coords=coords,
+        papers_with_coords=papers_with_coords,
     )
 
     # 빌드
@@ -121,12 +158,10 @@ def _synthesize_papers(
         embeddings.append(emb)
         labels.append(cid)
 
-        title_words = pyrand.sample(vocab, k=min(3, len(vocab)))
-        title = " ".join(w.title() for w in title_words) + f" (cluster {cid})"
-        abstract_words = pyrand.choices(vocab, k=20) + pyrand.choices(
-            ["model", "training", "dataset", "performance", "results", "method"], k=10
-        )
-        abstract = " ".join(abstract_words) + ". " + " ".join(pyrand.choices(vocab, k=15))
+        title_kws = pyrand.sample(vocab, k=min(2, len(vocab)))
+        title = " ".join(kw.title() for kw in title_kws)
+        # 합성 abstract는 클러스터 vocab만 사용 — c-TF-IDF가 일반 필러에 휘둘리지 않게.
+        abstract = ". ".join(pyrand.choices(vocab, k=20)) + "."
 
         days_back = pyrand.randint(0, 365 * 5)
         submitted = today - timedelta(days=days_back)

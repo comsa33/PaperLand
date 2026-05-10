@@ -32,13 +32,21 @@ export interface ClusterLabel {
   keywords: string[];
 }
 
+export interface NearestPaper {
+  id: string;
+  title: string;
+  neighbor_cell: string;
+}
+
 export interface WhitespaceCandidate {
   cell_id: string;
+  summary: string;
+  rationale: string;
   score: number;
   detector: string;
-  rationale: string;
   neighbor_keywords: string[];
   neighbor_categories: string[];
+  nearest_papers: NearestPaper[];
   own_count: number;
   neighbor_density: number;
   suggested_queries: string[];

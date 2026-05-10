@@ -73,10 +73,15 @@ def extract_cluster_keywords(
     tfidf = TfidfTransformer().fit_transform(counts)
     feature_names = vectorizer.get_feature_names_out()
 
+    # 다어 구문 부스트: bigram 점수에 가중치를 줘서 단일 단어 키워드가 후보를 흐리는 것을 방지
+    is_multiword = np.array([" " in name for name in feature_names])
+    multiword_boost = 1.6
+
     result: dict[int, list[str]] = {}
     for idx, cid in enumerate(cluster_ids):
         row = tfidf[idx].toarray().flatten()
-        top_idx = row.argsort()[::-1][:top_n]
+        boosted = row * np.where(is_multiword, multiword_boost, 1.0)
+        top_idx = boosted.argsort()[::-1][:top_n]
         keywords = [feature_names[i] for i in top_idx if row[i] > 0]
         result[cid] = keywords
     return result

@@ -45,16 +45,23 @@ paperland fixtures --out ../../apps/web/public/data`}
     );
   }
 
+  const isFixture = data.manifest.embedding_model.startsWith("synthetic-fixture");
+
   return (
     <main className="h-screen flex flex-col">
-      <header className="px-4 py-2 border-b border-[hsl(var(--border))] flex items-center justify-between">
-        <div className="flex items-baseline gap-3">
+      <header className="px-4 py-2 border-b border-[hsl(var(--border))] flex items-center justify-between gap-3">
+        <div className="flex items-baseline gap-3 min-w-0">
           <h1 className="text-sm font-bold tracking-tight">PaperLand</h1>
-          <p className="text-[11px] text-[hsl(var(--foreground))]/60">
+          <p className="text-[11px] text-[hsl(var(--foreground))]/60 truncate">
             연구 지형도 + 공백 후보 탐지기
           </p>
         </div>
-        <div className="text-[11px] text-[hsl(var(--foreground))]/50 font-mono">
+        {isFixture && (
+          <div className="px-2.5 py-1 rounded-md text-[10px] font-medium bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 whitespace-nowrap">
+            ⚠️ 샘플 데모 데이터 — 실제 arXiv 지형 아님
+          </div>
+        )}
+        <div className="text-[11px] text-[hsl(var(--foreground))]/50 font-mono whitespace-nowrap">
           epoch {data.manifest.map_epoch} · {data.manifest.paper_count}편
           {" · "}
           {data.manifest.categories.join(",")}

@@ -89,16 +89,19 @@ def build_artifacts(
     # 4. whitespace_top10.json
     ws_payload = []
     for row in whitespace_top.to_dicts():
+        neighbor_kws = row.get("neighbor_keywords") or []
         ws_payload.append({
             "cell_id": row["cell_id"],
+            "summary": row.get("summary") or "",
+            "rationale": row["rationale_template"],
             "score": float(row["score"]),
             "detector": row["detector"],
-            "rationale": row["rationale_template"],
-            "neighbor_keywords": row.get("neighbor_keywords") or [],
+            "neighbor_keywords": neighbor_kws,
             "neighbor_categories": row.get("neighbor_categories") or [],
+            "nearest_papers": row.get("nearest_papers") or [],
             "own_count": int(row["own_count"]),
             "neighbor_density": float(row["neighbor_density"]),
-            "suggested_queries": _build_suggested_queries(row.get("neighbor_keywords") or []),
+            "suggested_queries": _build_suggested_queries(neighbor_kws),
         })
     ws_checksum = _write_json(out_dir / "whitespace_top10.json", ws_payload)
 
